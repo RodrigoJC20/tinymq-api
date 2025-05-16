@@ -7,7 +7,7 @@ cd /d "%~dp0"
 rem Check if virtual environment exists
 if not exist gui_venv (
     echo Creating virtual environment...
-    python -m venv gui_venv
+    python3.12 -m venv gui_venv
     
     echo Installing dependencies...
     call gui_venv\Scripts\activate
