@@ -32,8 +32,8 @@ class MessageLog:
     id: int
     publisher_client_id: str
     topic_id: int
-    topic_name: Optional[str] = None
     payload_size: int
+    topic_name: Optional[str] = None
     payload_preview: Optional[str] = None
     payload_data: Optional[Dict[str, Any]] = None
     published_at: Optional[datetime] = None
