@@ -21,24 +21,28 @@ class LoginView(ttk.Frame):
         self.setup_ui()
     
     def setup_ui(self):
-        # Configure the grid
-        self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=2)
+        # Configure the grid for LoginView to center content
+        self.columnconfigure(0, weight=1) # Left spacer
+        self.columnconfigure(1, weight=0) # Content column (no extra weight initially)
+        self.columnconfigure(2, weight=1) # Right spacer
         
         # Create header
         header_frame = ttk.Frame(self)
-        header_frame.grid(row=0, column=0, columnspan=2, pady=20, sticky="ew")
-        header_frame.columnconfigure(0, weight=1)
+        # Place header_frame in the content column (column 1)
+        header_frame.grid(row=0, column=1, pady=(20,10), sticky="ew") 
+        header_frame.columnconfigure(0, weight=1) # Make title/subtitle center within header_frame
         
         title_label = ttk.Label(header_frame, text="TinyMQ Monitor", font=("Helvetica", 24, "bold"))
-        title_label.grid(row=0, column=0)
+        title_label.grid(row=0, column=0, sticky="n") # Center title text
         
         subtitle_label = ttk.Label(header_frame, text="Connect to your TinyMQ Broker API")
-        subtitle_label.grid(row=1, column=0, pady=5)
+        subtitle_label.grid(row=1, column=0, pady=5, sticky="n") # Center subtitle text
         
         # Connection details frame with border
         connection_frame = ttk.LabelFrame(self, text="Connection Details")
-        connection_frame.grid(row=1, column=0, columnspan=2, padx=20, pady=10, sticky="nsew")
+        # Place connection_frame in the content column (column 1)
+        connection_frame.grid(row=1, column=1, padx=20, pady=10, sticky="ew")
+        connection_frame.columnconfigure(1, weight=1) # Allow entry fields to expand
         
         # Host
         ttk.Label(connection_frame, text="Host:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
@@ -48,13 +52,15 @@ class LoginView(ttk.Frame):
         
         # Port
         ttk.Label(connection_frame, text="Port:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
-        self.port_entry = ttk.Entry(connection_frame, width=10)
+        self.port_entry = ttk.Entry(connection_frame, width=10) # Keep port entry fixed width
         self.port_entry.insert(0, str(self.default_port))
-        self.port_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        self.port_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w") # Align port entry to west
         
         # Authentication frame
         auth_frame = ttk.LabelFrame(self, text="Authentication")
-        auth_frame.grid(row=2, column=0, columnspan=2, padx=20, pady=10, sticky="nsew")
+        # Place auth_frame in the content column (column 1)
+        auth_frame.grid(row=2, column=1, padx=20, pady=10, sticky="ew")
+        auth_frame.columnconfigure(1, weight=1) # Allow entry fields to expand
         
         # Username
         ttk.Label(auth_frame, text="Username:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
@@ -70,16 +76,20 @@ class LoginView(ttk.Frame):
         
         # Buttons frame
         buttons_frame = ttk.Frame(self)
-        buttons_frame.grid(row=3, column=0, columnspan=2, padx=20, pady=20)
-        
+        # Place buttons_frame in the content column (column 1)
+        buttons_frame.grid(row=3, column=1, padx=20, pady=20, sticky="n") # Center buttons frame
+        # Configure columns in buttons_frame to center the buttons themselves
+        buttons_frame.columnconfigure(0, weight=1)
+        buttons_frame.columnconfigure(1, weight=1)
+
         # Login button
         self.login_button = ttk.Button(
             buttons_frame, 
             text="Login", 
-            command=self.attempt_login,
-            style="Accent.TButton"
+            command=self.attempt_login
+            # style="Accent.TButton" # Removed style for now
         )
-        self.login_button.grid(row=0, column=0, padx=10)
+        self.login_button.grid(row=0, column=0, padx=5) # Reduced padx slightly
         
         # Exit button
         self.exit_button = ttk.Button(
@@ -87,12 +97,13 @@ class LoginView(ttk.Frame):
             text="Exit", 
             command=self.parent.quit
         )
-        self.exit_button.grid(row=0, column=1, padx=10)
+        self.exit_button.grid(row=0, column=1, padx=5) # Reduced padx slightly
         
         # Status message
         self.status_var = tk.StringVar()
         self.status_label = ttk.Label(self, textvariable=self.status_var, foreground="red")
-        self.status_label.grid(row=4, column=0, columnspan=2, pady=10)
+        # Place status_label in the content column (column 1)
+        self.status_label.grid(row=4, column=1, pady=10, sticky="n") # Center status message
         
         # Add some padding to all children of frames
         for frame in [connection_frame, auth_frame]:
