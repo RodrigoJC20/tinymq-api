@@ -11,6 +11,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from gui.views.login import LoginView
 from gui.views.dashboard import DashboardView
 from gui.views.clients import ClientsView
+from gui.views.settings import SettingsView
+from gui.views.topics import TopicsView
+from gui.views.subscriptions import SubscriptionsView
+from gui.views.messages import MessagesView
+from gui.views.events import EventsView
 
 class TinyMQMonitorApp:
     """Main TinyMQ Monitor application"""
@@ -71,18 +76,16 @@ class TinyMQMonitorApp:
             self.current_view = DashboardView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "clients":
             self.current_view = ClientsView(self.main_frame, self.api_client, self.show_view)
+        elif view_name == "settings":
+            self.current_view = SettingsView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "topics":
-            self.show_not_implemented(view_name)
-            return
+            self.current_view = TopicsView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "subscriptions":
-            self.show_not_implemented(view_name)
-            return
+            self.current_view = SubscriptionsView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "messages":
-            self.show_not_implemented(view_name)
-            return
+            self.current_view = MessagesView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "events":
-            self.show_not_implemented(view_name)
-            return
+            self.current_view = EventsView(self.main_frame, self.api_client, self.show_view)
         else:
             # Handle unknown views
             messagebox.showerror("Error", f"Unknown view: {view_name}")

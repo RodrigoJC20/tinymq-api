@@ -327,9 +327,29 @@ class ClientsView(ttk.Frame):
         """Updates state of detail action buttons"""
         state = ["!disabled"] if enabled else ["disabled"]
         
-        for button in self.winfo_children()[1].winfo_children()[1].winfo_children()[1].winfo_children()[-1].winfo_children():
-            if isinstance(button, ttk.Button):
-                button.state(state)
+        # Get reference to action frame directly
+        try:
+            # Find the action frame which is in the details frame
+            content_frame = self.winfo_children()[1]  # This should be the content_frame
+            if content_frame and hasattr(content_frame, 'winfo_children'):
+                details_frame = None
+                # Look for details_frame (LabelFrame with text "Client Details")
+                for child in content_frame.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and child.cget("text") == "Client Details":
+                        details_frame = child
+                        break
+                
+                if details_frame:
+                    # Look for the action_frame which is a regular Frame in the details_frame
+                    for child in details_frame.winfo_children():
+                        if isinstance(child, ttk.Frame):
+                            # This should be the action_frame
+                            for button in child.winfo_children():
+                                if isinstance(button, ttk.Button):
+                                    button.state(state)
+        except (IndexError, AttributeError) as e:
+            print(f"Error updating button states: {e}")
+            # If there's an error, fail silently - the buttons just won't be enabled/disabled
     
     def delete_client(self):
         """Deletes the selected client"""
