@@ -197,9 +197,10 @@ class DashboardView(ttk.Frame):
             self.last_updated.set(now)
             
         except Exception as e:
-            print(f"Error refreshing data: {str(e)}")
-            # Handle error on the main thread
-            self.after(0, lambda: messagebox.showerror("Refresh Error", f"Error loading dashboard data: {str(e)}"))
+            error_message = str(e)
+            print(f"Error refreshing data: {error_message}")
+            # Store error message in a variable that can be accessed by the lambda
+            self.after(0, lambda error=error_message: messagebox.showerror("Refresh Error", f"Error loading dashboard data: {error}"))
     
     def _update_activity_list(self, events):
         """Updates the activity tree with connection events"""
@@ -209,7 +210,22 @@ class DashboardView(ttk.Frame):
         
         # Add new events
         for event in events:
-            timestamp = event.timestamp.strftime("%Y-%m-%d %H:%M:%S") if event.timestamp else "N/A"
+            # Handle timestamp consistently
+            if isinstance(event.timestamp, str) and event.timestamp:
+                try:
+                    from datetime import datetime
+                    # Try to parse the string to datetime
+                    timestamp = datetime.strptime(event.timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    # If parsing fails, just use the string as is
+                    timestamp = event.timestamp
+            elif hasattr(event.timestamp, 'strftime'):
+                # It's already a datetime object
+                timestamp = event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                # It's None or some other type
+                timestamp = "N/A"
+                
             self.activity_tree.insert(
                 "", "end", 
                 values=(timestamp, event.client_id, event.event_type)

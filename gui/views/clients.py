@@ -220,7 +220,21 @@ class ClientsView(ttk.Frame):
         
         # Add clients to treeview
         for client in clients:
-            last_connected = client.last_connected.strftime("%Y-%m-%d %H:%M:%S") if client.last_connected else "N/A"
+            # Check if last_connected is a string and convert to datetime if needed
+            if isinstance(client.last_connected, str) and client.last_connected:
+                try:
+                    from datetime import datetime
+                    # Try to parse the string to datetime
+                    last_connected = datetime.strptime(client.last_connected, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    # If parsing fails, just use the string as is
+                    last_connected = client.last_connected
+            elif hasattr(client.last_connected, 'strftime'):
+                # It's already a datetime object
+                last_connected = client.last_connected.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                # It's None or some other type
+                last_connected = "N/A"
             
             self.clients_tree.insert(
                 "", "end", 
@@ -304,9 +318,24 @@ class ClientsView(ttk.Frame):
         self.detail_client_id.config(text=client.client_id)
         self.detail_ip.config(text=client.last_ip or "N/A")
         self.detail_port.config(text=str(client.last_port) if client.last_port else "N/A")
-        self.detail_last_connected.config(
-            text=client.last_connected.strftime("%Y-%m-%d %H:%M:%S") if client.last_connected else "N/A"
-        )
+        
+        # Handle last_connected consistently with _update_client_list
+        if isinstance(client.last_connected, str) and client.last_connected:
+            try:
+                from datetime import datetime
+                # Try to parse the string to datetime
+                last_connected = datetime.strptime(client.last_connected, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                # If parsing fails, just use the string as is
+                last_connected = client.last_connected
+        elif hasattr(client.last_connected, 'strftime'):
+            # It's already a datetime object
+            last_connected = client.last_connected.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            # It's None or some other type
+            last_connected = "N/A"
+            
+        self.detail_last_connected.config(text=last_connected)
         self.detail_count.config(text=str(client.connection_count))
         
         # Enable detail buttons

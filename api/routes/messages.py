@@ -45,15 +45,34 @@ def get_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    messages = db.query(MessageLog).options(
-        joinedload(MessageLog.topic)
-    ).order_by(MessageLog.published_at.desc()).offset(skip).limit(limit).all()
+    # Use explicit column selection to avoid columns that might not exist in the database
+    messages = db.query(
+        MessageLog.id,
+        MessageLog.publisher_client_id,
+        MessageLog.topic_id,
+        MessageLog.payload_size,
+        MessageLog.payload_preview,
+        MessageLog.published_at,
+        Topic.name.label('topic_name')
+    ).join(
+        Topic, MessageLog.topic_id == Topic.id, isouter=True
+    ).order_by(
+        MessageLog.published_at.desc()
+    ).offset(skip).limit(limit).all()
     
-    # Manually add topic_name to response
+    # Convert query results to dictionaries
     result = []
     for msg in messages:
-        msg_dict = MessageLogResponse.model_validate(msg).model_dump()
-        msg_dict["topic_name"] = msg.topic.name if msg.topic else None
+        msg_dict = {
+            "id": msg.id,
+            "publisher_client_id": msg.publisher_client_id,
+            "topic_id": msg.topic_id,
+            "payload_size": msg.payload_size,
+            "payload_preview": msg.payload_preview,
+            "payload_data": None,  # Set to None since it doesn't exist in DB
+            "published_at": msg.published_at,
+            "topic_name": msg.topic_name
+        }
         result.append(msg_dict)
     
     return result
@@ -64,16 +83,34 @@ def get_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    message = db.query(MessageLog).options(
-        joinedload(MessageLog.topic)
-    ).filter(MessageLog.id == message_id).first()
+    # Use explicit column selection to avoid columns that might not exist in the database
+    message = db.query(
+        MessageLog.id,
+        MessageLog.publisher_client_id,
+        MessageLog.topic_id,
+        MessageLog.payload_size,
+        MessageLog.payload_preview,
+        MessageLog.published_at,
+        Topic.name.label('topic_name')
+    ).join(
+        Topic, MessageLog.topic_id == Topic.id, isouter=True
+    ).filter(
+        MessageLog.id == message_id
+    ).first()
     
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found")
     
-    # Manually add topic_name to response
-    msg_dict = MessageLogResponse.model_validate(message).model_dump()
-    msg_dict["topic_name"] = message.topic.name if message.topic else None
+    msg_dict = {
+        "id": message.id,
+        "publisher_client_id": message.publisher_client_id,
+        "topic_id": message.topic_id,
+        "payload_size": message.payload_size,
+        "payload_preview": message.payload_preview,
+        "payload_data": None,  # Set to None since it doesn't exist in DB
+        "published_at": message.published_at,
+        "topic_name": message.topic_name
+    }
     
     return msg_dict
 
@@ -105,20 +142,36 @@ def get_messages_by_client(
     if client is None:
         raise HTTPException(status_code=404, detail="Client not found")
     
-    # Get messages published by client
-    messages = db.query(MessageLog).options(
-        joinedload(MessageLog.topic)
+    # Get messages published by client using explicit column selection
+    messages = db.query(
+        MessageLog.id,
+        MessageLog.publisher_client_id,
+        MessageLog.topic_id,
+        MessageLog.payload_size,
+        MessageLog.payload_preview,
+        MessageLog.published_at,
+        Topic.name.label('topic_name')
+    ).join(
+        Topic, MessageLog.topic_id == Topic.id, isouter=True
     ).filter(
         MessageLog.publisher_client_id == client_id
     ).order_by(
         MessageLog.published_at.desc()
     ).offset(skip).limit(limit).all()
     
-    # Manually add topic_name to response
+    # Convert query results to dictionaries
     result = []
     for msg in messages:
-        msg_dict = MessageLogResponse.model_validate(msg).model_dump()
-        msg_dict["topic_name"] = msg.topic.name if msg.topic else None
+        msg_dict = {
+            "id": msg.id,
+            "publisher_client_id": msg.publisher_client_id,
+            "topic_id": msg.topic_id,
+            "payload_size": msg.payload_size,
+            "payload_preview": msg.payload_preview,
+            "payload_data": None,  # Set to None since it doesn't exist in DB
+            "published_at": msg.published_at,
+            "topic_name": msg.topic_name
+        }
         result.append(msg_dict)
     
     return result
@@ -136,20 +189,36 @@ def get_messages_by_topic(
     if topic is None:
         raise HTTPException(status_code=404, detail="Topic not found")
     
-    # Get messages for topic
-    messages = db.query(MessageLog).options(
-        joinedload(MessageLog.topic)
+    # Get messages for topic using explicit column selection
+    messages = db.query(
+        MessageLog.id,
+        MessageLog.publisher_client_id,
+        MessageLog.topic_id,
+        MessageLog.payload_size,
+        MessageLog.payload_preview,
+        MessageLog.published_at,
+        Topic.name.label('topic_name')
+    ).join(
+        Topic, MessageLog.topic_id == Topic.id, isouter=True
     ).filter(
         MessageLog.topic_id == topic_id
     ).order_by(
         MessageLog.published_at.desc()
     ).offset(skip).limit(limit).all()
     
-    # Manually add topic_name to response
+    # Convert query results to dictionaries
     result = []
     for msg in messages:
-        msg_dict = MessageLogResponse.model_validate(msg).model_dump()
-        msg_dict["topic_name"] = msg.topic.name if msg.topic else None
+        msg_dict = {
+            "id": msg.id,
+            "publisher_client_id": msg.publisher_client_id,
+            "topic_id": msg.topic_id,
+            "payload_size": msg.payload_size,
+            "payload_preview": msg.payload_preview,
+            "payload_data": None,  # Set to None since it doesn't exist in DB
+            "published_at": msg.published_at,
+            "topic_name": msg.topic_name
+        }
         result.append(msg_dict)
     
     return result 

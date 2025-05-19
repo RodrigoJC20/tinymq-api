@@ -196,68 +196,105 @@ class MessagesView(ttk.Frame):
     
     def _fetch_messages(self, skip):
         """Background thread to fetch messages from API"""
-        messages = self.api_client.get_messages(skip=skip, limit=self.page_size)
-        
-        # Update UI in main thread
-        self.after(0, lambda: self._update_message_list(messages))
+        try:
+            messages = self.api_client.get_messages(skip=skip, limit=self.page_size)
+            
+            # Check if widget still exists before updating UI
+            if self.winfo_exists():
+                # Update UI in main thread
+                self.after(0, lambda msgs=messages: self._update_message_list(msgs))
+                self.after(0, lambda: self.status_var.set(f"Loaded {len(messages)} messages"))
+            
+        except Exception as e:
+            error_message = str(e)
+            print(f"Failed to get messages: {error_message}")
+            
+            # Check if widget still exists before showing error
+            if self.winfo_exists():
+                self.after(0, lambda err=error_message: self.status_var.set(f"Error: {err}"))
+                self.after(0, lambda err=error_message: messagebox.showerror("Error", f"Failed to get messages: {err}"))
     
     def _update_message_list(self, messages):
         """Updates the messages treeview with data"""
-        # Clear existing entries
-        for row in self.messages_tree.get_children():
-            self.messages_tree.delete(row)
-            
-        # Add messages to treeview
-        for msg in messages:
-            # Format the published_at timestamp if it exists
-            published_at = msg.published_at
-            if published_at:
-                # Format date for display
-                if isinstance(published_at, str):
-                    # If it's a string, it's likely ISO format
-                    try:
-                        published_at = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
-                    except ValueError:
-                        pass
+        try:
+            # Check if treeview still exists 
+            if not self.winfo_exists() or not hasattr(self, 'messages_tree') or not self.messages_tree.winfo_exists():
+                return
                 
-                if isinstance(published_at, datetime):
-                    published_at = published_at.strftime("%Y-%m-%d %H:%M:%S")
+            # Clear existing entries
+            for row in self.messages_tree.get_children():
+                self.messages_tree.delete(row)
+                
+            # Add messages to treeview
+            for msg in messages:
+                # Format the published_at timestamp if it exists
+                published_at = msg.published_at
+                if published_at:
+                    # Format date for display
+                    if isinstance(published_at, str):
+                        # If it's a string, it's likely ISO format
+                        try:
+                            published_at = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
+                        except ValueError:
+                            pass
+                    
+                    if isinstance(published_at, datetime):
+                        published_at = published_at.strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Get topic name if available, or use ID as fallback
+                topic_name = getattr(msg, 'topic_name', str(msg.topic_id))
+                
+                # Insert into treeview
+                self.messages_tree.insert(
+                    "", "end", 
+                    values=(msg.id, msg.publisher_client_id, topic_name, published_at, msg.payload_size)
+                )
+                
+            # Update status if it exists
+            if hasattr(self, 'status_var'):
+                if messages:
+                    self.status_var.set(f"Loaded {len(messages)} messages")
+                else:
+                    self.status_var.set("No messages found")
+                
+            # Update pagination buttons
+            self.update_pagination()
             
-            # Get topic name if available, or use ID as fallback
-            topic_name = getattr(msg, 'topic_name', str(msg.topic_id))
-            
-            # Insert into treeview
-            self.messages_tree.insert(
-                "", "end", 
-                values=(msg.id, msg.publisher_client_id, topic_name, published_at, msg.payload_size)
-            )
-            
-        # Update status
-        if messages:
-            self.status_var.set(f"Loaded {len(messages)} messages")
-        else:
-            self.status_var.set("No messages found")
-            
-        # Update pagination buttons
-        self.update_pagination()
+        except tk.TclError as e:
+            # Handle Tcl/Tk errors like invalid command name for destroyed widgets
+            print(f"Tk error updating message list: {e}")
+        except Exception as e:
+            print(f"Error updating message list: {e}")
     
     def update_pagination(self):
         """Update pagination controls based on current page"""
-        self.page_label.config(text=f"Page {self.page + 1}")
-        
-        # Enable/disable prev button based on current page
-        if self.page > 0:
-            self.prev_page_btn.state(["!disabled"])
-        else:
-            self.prev_page_btn.state(["disabled"])
+        try:
+            # Check if widgets still exist
+            if not self.winfo_exists() or not hasattr(self, 'page_label') or not self.page_label.winfo_exists():
+                return
+                
+            self.page_label.config(text=f"Page {self.page + 1}")
             
-        # Logic for next button could depend on if we know there are more pages
-        # For now, we'll disable it if we received fewer items than the page size
-        children_count = len(self.messages_tree.get_children())
-        if children_count < self.page_size:
-            self.next_page_btn.state(["disabled"])
-        else:
-            self.next_page_btn.state(["!disabled"])
+            # Enable/disable prev button based on current page
+            if hasattr(self, 'prev_page_btn') and self.prev_page_btn.winfo_exists():
+                if self.page > 0:
+                    self.prev_page_btn.state(["!disabled"])
+                else:
+                    self.prev_page_btn.state(["disabled"])
+            
+            # Next button logic based on results
+            if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'messages_tree'):
+                client_count = len(self.messages_tree.get_children())
+                if client_count < self.page_size:
+                    self.next_page_btn.state(["disabled"])
+                else:
+                    self.next_page_btn.state(["!disabled"])
+                    
+        except tk.TclError as e:
+            # Handle Tcl/Tk errors like invalid command name for destroyed widgets
+            print(f"Tk error updating pagination: {e}")
+        except Exception as e:
+            print(f"Error updating pagination: {e}")
     
     def prev_page(self):
         """Go to previous page of messages"""
