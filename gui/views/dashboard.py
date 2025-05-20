@@ -80,19 +80,19 @@ class DashboardView(ttk.Frame):
             nav_frame, text="Topics", width=15,
             command=lambda: self.show_view_callback("topics")
         )
-        btn_topics.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        # btn_topics.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
         
         btn_subscriptions = ttk.Button(
             nav_frame, text="Subscriptions", width=15,
             command=lambda: self.show_view_callback("subscriptions")
         )
-        btn_subscriptions.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
+        # btn_subscriptions.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
         
         btn_messages = ttk.Button(
             nav_frame, text="Message Logs", width=15,
             command=lambda: self.show_view_callback("messages")
         )
-        btn_messages.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+        # btn_messages.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
         
         btn_events = ttk.Button(
             nav_frame, text="Connection Events", width=15,
@@ -166,70 +166,99 @@ class DashboardView(ttk.Frame):
     
     def refresh_data(self):
         """Refreshes all dashboard data"""
-        # Start data fetching in a separate thread to avoid UI freezing
-        threading.Thread(target=self._load_data, daemon=True).start()
+        try:
+            # Start data fetching in a separate thread to avoid UI freezing
+            threading.Thread(target=self._load_data, daemon=True).start()
+        except Exception as e:
+            print(f"Error starting refresh thread: {e}")
     
     def _load_data(self):
         """Loads data from API in background thread"""
         try:
             # Get client count
             clients = self.api_client.get_clients()
+            
+            # Make sure the view still exists before updating UI elements
+            if not self.winfo_exists():
+                return
+                
             self.client_count.set(str(len(clients)))
             
             # Get topic count
             topics = self.api_client.get_topics()
+            if not self.winfo_exists():
+                return
             self.topic_count.set(str(len(topics)))
             
             # Get message count (get first 100 messages)
             messages = self.api_client.get_messages()
+            if not self.winfo_exists():
+                return
             self.message_count.set(str(len(messages)))
             
             # Get subscription count (just active ones)
             subscriptions = self.api_client.get_subscriptions(active_only=True)
+            if not self.winfo_exists():
+                return
             self.active_subscriptions.set(str(len(subscriptions)))
             
             # Get recent activity (last 10 connection events)
             events = self.api_client.get_events(limit=10)
+            if not self.winfo_exists():
+                return
             self._update_activity_list(events)
             
             # Update last updated time
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if not self.winfo_exists():
+                return
             self.last_updated.set(now)
             
         except Exception as e:
             error_message = str(e)
             print(f"Error refreshing data: {error_message}")
             # Store error message in a variable that can be accessed by the lambda
-            self.after(0, lambda error=error_message: messagebox.showerror("Refresh Error", f"Error loading dashboard data: {error}"))
+            if self.winfo_exists():
+                self.after(0, lambda error=error_message: messagebox.showerror("Refresh Error", f"Error loading dashboard data: {error}"))
     
     def _update_activity_list(self, events):
         """Updates the activity tree with connection events"""
-        # Clear existing items
-        for item in self.activity_tree.get_children():
-            self.activity_tree.delete(item)
-        
-        # Add new events
-        for event in events:
-            # Handle timestamp consistently
-            if isinstance(event.timestamp, str) and event.timestamp:
-                try:
-                    from datetime import datetime
-                    # Try to parse the string to datetime
-                    timestamp = datetime.strptime(event.timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    # If parsing fails, just use the string as is
-                    timestamp = event.timestamp
-            elif hasattr(event.timestamp, 'strftime'):
-                # It's already a datetime object
-                timestamp = event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                # It's None or some other type
-                timestamp = "N/A"
+        try:
+            # Check if treeview still exists
+            if not self.winfo_exists() or not hasattr(self, 'activity_tree') or not self.activity_tree.winfo_exists():
+                return
                 
-            self.activity_tree.insert(
-                "", "end", 
-                values=(timestamp, event.client_id, event.event_type)
-            )
+            # Clear existing items
+            for item in self.activity_tree.get_children():
+                self.activity_tree.delete(item)
+            
+            # Add new events
+            for event in events:
+                # Handle timestamp consistently
+                if isinstance(event.timestamp, str) and event.timestamp:
+                    try:
+                        from datetime import datetime
+                        # Try to parse the string to datetime
+                        timestamp = datetime.strptime(event.timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        # If parsing fails, just use the string as is
+                        timestamp = event.timestamp
+                elif hasattr(event.timestamp, 'strftime'):
+                    # It's already a datetime object
+                    timestamp = event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    # It's None or some other type
+                    timestamp = "N/A"
+                    
+                self.activity_tree.insert(
+                    "", "end", 
+                    values=(timestamp, event.client_id, event.event_type)
+                )
+        except tk.TclError as e:
+            # Handle Tcl/Tk errors
+            print(f"Tk error updating activity list: {e}")
+        except Exception as e:
+            print(f"Error updating activity list: {e}")
     
     def start_auto_refresh(self, interval=30000):
         """Starts auto-refresh timer"""
@@ -240,8 +269,13 @@ class DashboardView(ttk.Frame):
     
     def _auto_refresh(self):
         """Auto refresh handler"""
-        self.refresh_data()
-        self.start_auto_refresh()
+        # Only refresh if the view still exists
+        if self.winfo_exists():
+            self.refresh_data()
+            self.start_auto_refresh()
+        else:
+            # View was destroyed, don't schedule more refreshes
+            self.refresh_timer = None
     
     def show_settings(self):
         """Shows settings dialog"""
@@ -254,5 +288,10 @@ class DashboardView(ttk.Frame):
     
     def on_destroy(self):
         """Clean up when view is destroyed"""
-        if self.refresh_timer is not None:
-            self.after_cancel(self.refresh_timer) 
+        try:
+            if self.refresh_timer is not None:
+                self.after_cancel(self.refresh_timer)
+                self.refresh_timer = None
+        except tk.TclError:
+            # Widget might already be destroyed
+            pass 
