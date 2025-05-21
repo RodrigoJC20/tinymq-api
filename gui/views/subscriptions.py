@@ -152,7 +152,7 @@ class SubscriptionsView(ttk.Frame):
         
         self.toggle_status_btn = ttk.Button(
             action_frame, 
-            text="Deactivate", 
+            text="Desactivate", 
             command=self.toggle_subscription_status
         )
         self.toggle_status_btn.grid(row=0, column=0, padx=5)
