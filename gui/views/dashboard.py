@@ -80,19 +80,19 @@ class DashboardView(ttk.Frame):
             nav_frame, text="Topics", width=15,
             command=lambda: self.show_view_callback("topics")
         )
-        # btn_topics.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        btn_topics.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
         
         btn_subscriptions = ttk.Button(
             nav_frame, text="Subscriptions", width=15,
             command=lambda: self.show_view_callback("subscriptions")
         )
-        # btn_subscriptions.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
+        btn_subscriptions.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
         
         btn_messages = ttk.Button(
             nav_frame, text="Message Logs", width=15,
             command=lambda: self.show_view_callback("messages")
         )
-        # btn_messages.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+        btn_messages.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
         
         btn_events = ttk.Button(
             nav_frame, text="Connection Events", width=15,
