@@ -216,6 +216,27 @@ class ApiClient:
             print(f"Error getting subscriptions: {str(e)}")
             return []
     
+    def get_subscription(self, subscription_id: int) -> Optional[Subscription]:
+        """Get a specific subscription by ID"""
+        if not self.ensure_authenticated():
+            return None
+        
+        try:
+            response = requests.get(
+                f"{self.api_config.base_url}/subscriptions/{subscription_id}",
+                headers=self._get_headers()
+            )
+            
+            if response.status_code == 200:
+                return Subscription(**response.json())
+            else:
+                print(f"Failed to get subscription: {response.status_code} {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"Error getting subscription: {str(e)}")
+            return None
+    
     def get_subscriptions_by_client(self, client_id: str, active_only: bool = False) -> List[Subscription]:
         """Get subscriptions for a specific client"""
         if not self.ensure_authenticated():
@@ -299,6 +320,28 @@ class ApiClient:
         except Exception as e:
             print(f"Error getting messages: {str(e)}")
             return []
+        
+    def get_message(self, message_id: int) -> Optional[MessageLog]:
+        """Get a single message by its ID."""
+        if not self.ensure_authenticated():
+            return None
+        
+        try:
+            response = requests.get(
+                f"{self.api_config.base_url}/messages/{message_id}",
+                headers=self._get_headers()
+            )
+            
+            if response.status_code == 200:
+                return MessageLog(**response.json())
+            else:
+                print(f"Failed to get message: {response.status_code} {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"Error getting message: {str(e)}")
+            return None
+    
     
     def get_messages_by_client(self, client_id: str, skip: int = 0, limit: int = 100) -> List[MessageLog]:
         """Get message logs for a specific client"""
@@ -475,4 +518,4 @@ class ApiClient:
                 
         except Exception as e:
             print(f"Error getting user info: {str(e)}")
-            return None 
+            return None
