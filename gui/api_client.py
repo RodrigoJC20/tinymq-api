@@ -50,6 +50,28 @@ class ApiClient:
             return self.login()
         return True
     
+    def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """Generic GET request handler."""
+        if not self.ensure_authenticated():
+            return None
+        
+        try:
+            response = requests.get(
+                f"{self.api_config.base_url}{endpoint}",
+                headers=self._get_headers(),
+                params=params
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Failed GET request to {endpoint}: {response.status_code} {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"Error during GET request to {endpoint}: {str(e)}")
+            return None
+
     # Client endpoints
     def get_clients(self, skip: int = 0, limit: int = 100) -> List[Client]:
         """Get a list of clients"""
@@ -260,7 +282,7 @@ class ApiClient:
             print(f"Error getting subscriptions: {str(e)}")
             return []
     
-    def get_subscriptions_by_topic(self, topic_id: int, active_only: bool = False) -> List[Subscription]:
+    def get_subscriptions_by_topic(self, topic_id, skip=0, limit=20):
         """Get subscriptions for a specific topic"""
         if not self.ensure_authenticated():
             return []
@@ -269,7 +291,7 @@ class ApiClient:
             response = requests.get(
                 f"{self.api_config.base_url}/subscriptions/by-topic/{topic_id}",
                 headers=self._get_headers(),
-                params={"active_only": active_only}
+                params={"skip": skip, "limit": limit}
             )
             
             if response.status_code == 200:
@@ -366,7 +388,7 @@ class ApiClient:
             print(f"Error getting messages: {str(e)}")
             return []
     
-    def get_messages_by_topic(self, topic_id: int, skip: int = 0, limit: int = 100) -> List[MessageLog]:
+    def get_messages_by_topic(self, topic_id, skip=0, limit=20):
         """Get message logs for a specific topic"""
         if not self.ensure_authenticated():
             return []
@@ -516,3 +538,10 @@ class ApiClient:
         except Exception as e:
             print(f"Error getting user info: {str(e)}")
             return None
+    
+    def get_client_by_topic(self, topic_id):
+        """Fetch the owner client of a topic by topic ID."""
+        data = self._get(f"/topics/{topic_id}/client")
+        if data:
+            return Client(**data)  # Convierte el diccionario en una instancia de Client
+        return None

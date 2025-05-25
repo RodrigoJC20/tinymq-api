@@ -136,21 +136,21 @@ class TopicsView(ttk.Frame):
         view_subscriptions_btn = ttk.Button(
             action_frame, 
             text="View Subscriptions", 
-            command=self.view_topic_subscriptions
+            command=lambda: self.show_view_callback("topic_subscriptions", topic_id=self.selected_topic.id)
         )
         view_subscriptions_btn.grid(row=0, column=0, padx=5)
         
         view_messages_btn = ttk.Button(
             action_frame, 
             text="View Messages", 
-            command=self.view_topic_messages
+            command=lambda: self.show_view_callback("topic_messages", topic_id=self.selected_topic.id)
         )
         view_messages_btn.grid(row=0, column=1, padx=5)
         
         view_owner_btn = ttk.Button(
             action_frame, 
             text="View Owner Client", 
-            command=self.view_owner_client
+            command=lambda: self.show_view_callback("topic_client", topic_id=self.selected_topic.id)
         )
         view_owner_btn.grid(row=0, column=2, padx=5)
         
@@ -396,4 +396,4 @@ class TopicsView(ttk.Frame):
                 "Delete Failed", 
                 f"Failed to delete topic '{self.selected_topic.name}'"
             ))
-            self.after(0, lambda: self.status_var.set("Delete failed")) 
+            self.after(0, lambda: self.status_var.set("Delete failed"))

@@ -28,6 +28,37 @@ class TopicResponse(TopicBase):
     class Config:
         from_attributes = True
 
+class SubscriptionDetail(BaseModel):
+    id: int
+    client_id: str
+    subscribed_at: Optional[datetime]
+    active: bool
+    
+    class Config:
+        from_attributes = True
+
+class MessageLogDetail(BaseModel):
+    id: int
+    publisher_client_id: str
+    topic_id: int
+    payload_size: int
+    payload_preview: Optional[str]
+    published_at: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
+class ClientDetail(BaseModel):
+    id: int
+    client_id: str
+    last_connected: Optional[datetime]
+    last_ip: Optional[str]
+    last_port: Optional[int]
+    connection_count: int
+    
+    class Config:
+        from_attributes = True
+
 # Routes
 @router.get("/", response_model=List[TopicResponse])
 def get_topics(
@@ -90,4 +121,22 @@ def get_topics_by_client(
     
     # Get topics owned by client
     topics = db.query(Topic).filter(Topic.owner_client_id == client_id).all()
-    return topics 
+    return topics
+
+@router.get("/{topic_id}/client", response_model=ClientDetail)
+def get_client_by_topic(
+    topic_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    # Buscar el tema por ID
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    
+    # Buscar el cliente propietario del tema
+    client = db.query(Client).filter(Client.client_id == topic.owner_client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    return client
