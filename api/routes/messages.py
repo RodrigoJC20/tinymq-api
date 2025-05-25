@@ -41,7 +41,7 @@ class MessageLogDetail(MessageLogResponse):
 @router.get("/", response_model=List[MessageLogDetail])
 def get_messages(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(10000, ge=1, le=1000), # Adjusted limit to 10000
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):

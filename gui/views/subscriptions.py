@@ -345,7 +345,7 @@ class SubscriptionsView(ttk.Frame):
         
         # Update toggle button text based on current status
         if subscription.active:
-            self.toggle_status_btn.config(text="Deactivate")
+            self.toggle_status_btn.config(text="Desactivate")
         else:
             self.toggle_status_btn.config(text="Activate")
         
@@ -386,7 +386,7 @@ class SubscriptionsView(ttk.Frame):
             
         # Determine the new status (opposite of current)
         new_status = not self.selected_subscription.active
-        action = "activate" if new_status else "deactivate"
+        action = "activate" if new_status else "desactivate"
         
         # Confirm the action
         confirm = messagebox.askyesno(

@@ -412,30 +412,22 @@ class ClientsView(ttk.Frame):
         """Navigate to topics view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to topics view
-        messagebox.showinfo("Not Implemented", "View topics by client feature coming soon!")
-    
+        self.show_view_callback("client_topics", client_id=self.selected_client.client_id)
+
     def view_client_subscriptions(self):
         """Navigate to subscriptions view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to subscriptions view
-        messagebox.showinfo("Not Implemented", "View subscriptions by client feature coming soon!")
-    
+        self.show_view_callback("client_subscriptions", client_id=self.selected_client.client_id)
+
     def view_client_messages(self):
         """Navigate to messages view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to messages view
-        messagebox.showinfo("Not Implemented", "View messages by client feature coming soon!")
-    
+        self.show_view_callback("client_messages", client_id=self.selected_client.client_id)
+
     def view_client_events(self):
         """Navigate to events view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to events view
-        messagebox.showinfo("Not Implemented", "View events by client feature coming soon!") 
+        self.show_view_callback("client_events", client_id=self.selected_client.client_id)

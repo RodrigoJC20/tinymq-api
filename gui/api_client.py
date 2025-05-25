@@ -155,7 +155,7 @@ class ApiClient:
             print(f"Error getting topic: {str(e)}")
             return None
     
-    def get_topics_by_client(self, client_id: str) -> List[Topic]:
+    def get_topics_by_client(self, client_id: str, skip: int = 0, limit: int = 100) -> List[Topic]:
         """Get topics owned by a specific client"""
         if not self.ensure_authenticated():
             return []
@@ -163,7 +163,8 @@ class ApiClient:
         try:
             response = requests.get(
                 f"{self.api_config.base_url}/topics/by-client/{client_id}",
-                headers=self._get_headers()
+                headers=self._get_headers(),
+                params={"skip": skip, "limit": limit}
             )
             
             if response.status_code == 200:
@@ -237,7 +238,7 @@ class ApiClient:
             print(f"Error getting subscription: {str(e)}")
             return None
     
-    def get_subscriptions_by_client(self, client_id: str, active_only: bool = False) -> List[Subscription]:
+    def get_subscriptions_by_client(self, client_id: str, skip: int = 0, limit: int = 100) -> List[Subscription]:
         """Get subscriptions for a specific client"""
         if not self.ensure_authenticated():
             return []
@@ -246,7 +247,7 @@ class ApiClient:
             response = requests.get(
                 f"{self.api_config.base_url}/subscriptions/by-client/{client_id}",
                 headers=self._get_headers(),
-                params={"active_only": active_only}
+                params={"skip": skip, "limit": limit}
             )
             
             if response.status_code == 200:
@@ -431,20 +432,16 @@ class ApiClient:
             print(f"Error getting events: {str(e)}")
             return []
     
-    def get_events_by_client(self, client_id: str, skip: int = 0, limit: int = 100, event_type: Optional[str] = None) -> List[ConnectionEvent]:
+    def get_events_by_client(self, client_id: str, skip: int = 0, limit: int = 100) -> List[ConnectionEvent]:
         """Get connection events for a specific client"""
         if not self.ensure_authenticated():
             return []
-        
-        params = {"skip": skip, "limit": limit}
-        if event_type:
-            params["event_type"] = event_type
         
         try:
             response = requests.get(
                 f"{self.api_config.base_url}/events/by-client/{client_id}",
                 headers=self._get_headers(),
-                params=params
+                params={"skip": skip, "limit": limit}
             )
             
             if response.status_code == 200:

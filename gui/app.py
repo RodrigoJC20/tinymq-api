@@ -16,6 +16,10 @@ from gui.views.topics import TopicsView
 from gui.views.subscriptions import SubscriptionsView
 from gui.views.messages import MessagesView
 from gui.views.events import EventsView
+from gui.views.client_topics import ClientTopicsView
+from gui.views.client_subscriptions import ClientSubscriptionsView
+from gui.views.client_messages import ClientMessagesView
+from gui.views.client_events import ClientEventsView
 
 class TinyMQMonitorApp:
     """Main TinyMQ Monitor application"""
@@ -86,6 +90,14 @@ class TinyMQMonitorApp:
             self.current_view = MessagesView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "events":
             self.current_view = EventsView(self.main_frame, self.api_client, self.show_view)
+        elif view_name == "client_topics":
+            self.current_view = ClientTopicsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "client_subscriptions":
+            self.current_view = ClientSubscriptionsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "client_messages":
+            self.current_view = ClientMessagesView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "client_events":
+            self.current_view = ClientEventsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
         else:
             # Handle unknown views
             messagebox.showerror("Error", f"Unknown view: {view_name}")
@@ -115,4 +127,4 @@ class TinyMQMonitorApp:
 
 if __name__ == "__main__":
     app = TinyMQMonitorApp()
-    app.run() 
+    app.run()
