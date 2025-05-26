@@ -162,17 +162,17 @@ class EventsView(ttk.Frame):
         view_client_btn = ttk.Button(
             action_frame, 
             text="View Client", 
-            command=self.view_client
+            command=lambda: self.show_view_callback("event_client", event_id=self.selected_event.id)
         )
         view_client_btn.grid(row=0, column=0, padx=5)
-        
+
         view_client_events_btn = ttk.Button(
             action_frame, 
             text="View All Client Events", 
-            command=self.view_client_events
+            command=lambda: self.show_view_callback("event_all_client_events", client_id=self.selected_event.client_id)
         )
         view_client_events_btn.grid(row=0, column=1, padx=5)
-        
+
         # Status bar
         status_frame = ttk.Frame(self)
         status_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
@@ -314,7 +314,8 @@ class EventsView(ttk.Frame):
             self.after(0, lambda: self.update_event_details(event))
         else:
             self.after(0, lambda: self.status_var.set("Failed to load event details"))
-    
+            self.after(0, self.clear_event_details)  # Clear details if loading fails
+
     def update_event_details(self, event):
         """Update the event details panel with event data"""
         self.selected_event = event
@@ -359,32 +360,24 @@ class EventsView(ttk.Frame):
     
     def update_detail_buttons_state(self, enabled):
         """Enable or disable the detail action buttons"""
-        state = ["!disabled"] if enabled else ["disabled"]
+        state = ["!disabled"] if enabled and self.selected_event else ["disabled"]
         
         # Get all buttons in the action frame
         action_frame = self.winfo_children()[1].winfo_children()[1].winfo_children()[6]
         for child in action_frame.winfo_children():
             if isinstance(child, ttk.Button):
                 child.state(state)
-    
+
     def view_client(self):
         """Navigate to the client details view for this event's client"""
         if self.selected_event:
-            # This would normally transition to the client view
-            # For now, just show a message
-            messagebox.showinfo(
-                "View Client", 
-                f"View client '{self.selected_event.client_id}'\n"
-                f"This navigation feature is not yet implemented."
-            )
-    
+            self.show_view_callback("event_client", event_id=self.selected_event.id)
+        else:
+            messagebox.showerror("Error", "No event selected.")
+
     def view_client_events(self):
         """Filter events to only show those for this client"""
         if self.selected_event:
-            # This would normally filter the events view to only show events for this client
-            # For now, just show a message
-            messagebox.showinfo(
-                "View Client Events", 
-                f"Filter events for client '{self.selected_event.client_id}'\n"
-                f"This filtering feature is not yet implemented."
-            ) 
+            self.show_view_callback("event_all_client_events", client_id=self.selected_event.client_id)
+        else:
+            messagebox.showerror("Error", "No event selected.")

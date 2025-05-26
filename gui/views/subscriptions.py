@@ -160,14 +160,14 @@ class SubscriptionsView(ttk.Frame):
         view_client_btn = ttk.Button(
             action_frame, 
             text="View Client", 
-            command=self.view_client
+            command=lambda: self.show_view_callback("subscription_client", subscription_id=self.selected_subscription.id)
         )
         view_client_btn.grid(row=0, column=1, padx=5)
         
         view_topic_btn = ttk.Button(
             action_frame, 
             text="View Topic", 
-            command=self.view_topic
+            command=lambda: self.show_view_callback("subscription_topic", subscription_id=self.selected_subscription.id)
         )
         view_topic_btn.grid(row=0, column=2, padx=5)
         
@@ -175,7 +175,7 @@ class SubscriptionsView(ttk.Frame):
             action_frame, 
             text="Delete Subscription", 
             command=self.delete_subscription,
-            style="Danger.TButton"  # This would need a custom style definition
+            style="Danger.TButton"
         )
         delete_btn.grid(row=0, column=3, padx=5)
         
@@ -408,21 +408,26 @@ class SubscriptionsView(ttk.Frame):
         if not self.selected_subscription:
             return
             
-        # This would call the API to toggle status
-        # Since we don't have a specific method for this, we'll implement a placeholder
-        # In a real app, you would have an API endpoint like:
-        # success = self.api_client.update_subscription_status(self.selected_subscription.id, new_status)
-        success = False
-        
-        # Show the message since this feature isn't fully implemented
-        self.after(0, lambda: messagebox.showinfo(
-            "Not Fully Implemented",
-            "Changing subscription status is not fully implemented yet.\n"
-            "The API needs an endpoint for updating subscription status."
-        ))
-        
-        # For now, just refresh the view
-        self.after(0, self.load_subscriptions)
+        try:
+            # Call the API to update the subscription status
+            success = self.api_client.update_subscription_status(self.selected_subscription.id, new_status)
+            
+            if success:
+                # Update the UI to reflect the new status
+                self.after(0, lambda: self.status_var.set("Subscription status updated successfully"))
+                self.after(0, self.load_subscriptions)
+            else:
+                self.after(0, lambda: messagebox.showerror(
+                    "Update Failed", 
+                    "Failed to update subscription status"
+                ))
+                self.after(0, lambda: self.status_var.set("Update failed"))
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror(
+                "Error", 
+                f"An error occurred while updating subscription status: {str(e)}"
+            ))
+            self.after(0, lambda: self.status_var.set("Error updating status"))
     
     def view_client(self):
         """Navigate to the client details view for this subscription's client"""
@@ -474,4 +479,4 @@ class SubscriptionsView(ttk.Frame):
                 "Delete Failed", 
                 "Failed to delete subscription"
             ))
-            self.after(0, lambda: self.status_var.set("Delete failed")) 
+            self.after(0, lambda: self.status_var.set("Delete failed"))

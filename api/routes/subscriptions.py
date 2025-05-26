@@ -35,6 +35,29 @@ class SubscriptionDetail(SubscriptionResponse):
     class Config:
         from_attributes = True
 
+class ClientResponse(BaseModel):
+    id: int
+    client_id: str
+    last_connected: Optional[datetime] = None
+    last_ip: Optional[str] = None
+    last_port: Optional[int] = None
+    connection_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+class TopicResponse(BaseModel):
+    id: int
+    name: str
+    owner_client_id: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class SubscriptionStatusUpdate(BaseModel):
+    active: bool
+
 # Routes
 @router.get("/", response_model=List[SubscriptionDetail])
 def get_subscriptions(
@@ -154,4 +177,51 @@ def get_subscriptions_by_topic(
         sub_dict["topic_name"] = sub.topic.name if sub.topic else None
         result.append(sub_dict)
     
-    return result 
+    return result
+
+@router.get("/{subscription_id}/client", response_model=ClientResponse)
+def get_client_by_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if subscription is None:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    client = db.query(Client).filter(Client.client_id == subscription.client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    return client
+
+@router.get("/{subscription_id}/topic", response_model=TopicResponse)
+def get_topic_by_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if subscription is None:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    topic = db.query(Topic).filter(Topic.id == subscription.topic_id).first()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    
+    return topic
+
+@router.put("/{subscription_id}/status", status_code=200)
+def update_subscription_status(
+    subscription_id: int,
+    status_update: SubscriptionStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    subscription = db.query(Subscription).filter(Subscription.id == subscription_id).first()
+    if subscription is None:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    
+    subscription.active = status_update.active
+    db.commit()
+    return {"message": "Subscription status updated successfully"}

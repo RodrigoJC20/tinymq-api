@@ -23,6 +23,12 @@ from gui.views.client_events import ClientEventsView
 from gui.views.topic_subscriptions import TopicSubscriptionsView
 from gui.views.topic_messages import TopicMessagesView
 from gui.views.topic_client import TopicClientView
+from gui.views.subscription_client import SubscriptionClientView
+from gui.views.subscription_topic import SubscriptionTopicView
+from gui.views.message_publisher import MessagePublisherView
+from gui.views.message_topic import MessageTopicView
+from gui.views.event_all_client_events import EventAllClientEventsView
+from gui.views.event_client import EventClientView
 
 class TinyMQMonitorApp:
     """Main TinyMQ Monitor application"""
@@ -107,6 +113,18 @@ class TinyMQMonitorApp:
             self.current_view = TopicMessagesView(self.main_frame, self.api_client, kwargs["topic_id"], self.show_view)
         elif view_name == "topic_client":
             self.current_view = TopicClientView(self.main_frame, self.api_client, kwargs["topic_id"], self.show_view)
+        elif view_name == "subscription_client":
+            self.current_view = SubscriptionClientView(self.main_frame, self.api_client, kwargs["subscription_id"], self.show_view)
+        elif view_name == "subscription_topic":
+            self.current_view = SubscriptionTopicView(self.main_frame, self.api_client, kwargs["subscription_id"], self.show_view)
+        elif view_name == "message_publisher":
+            self.current_view = MessagePublisherView(self.main_frame, self.api_client, kwargs["message_id"], self.show_view)
+        elif view_name == "message_topic":
+            self.current_view = MessageTopicView(self.main_frame, self.api_client, kwargs["message_id"], self.show_view)
+        elif view_name == "event_all_client_events": 
+            self.current_view = EventAllClientEventsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "event_client":
+            self.current_view = EventClientView(self.main_frame, self.api_client, kwargs["event_id"], self.show_view)
         else:
             # Handle unknown views
             messagebox.showerror("Error", f"Unknown view: {view_name}")

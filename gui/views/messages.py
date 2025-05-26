@@ -157,14 +157,14 @@ class MessagesView(ttk.Frame):
         view_publisher_btn = ttk.Button(
             action_frame, 
             text="View Publisher", 
-            command=self.view_publisher
+            command=lambda: self.show_view_callback("message_publisher", message_id=self.selected_message.id)
         )
         view_publisher_btn.grid(row=0, column=0, padx=5)
         
         view_topic_btn = ttk.Button(
             action_frame, 
             text="View Topic", 
-            command=self.view_topic
+            command=lambda: self.show_view_callback("message_topic", message_id=self.selected_message.id)
         )
         view_topic_btn.grid(row=0, column=1, padx=5)
         
@@ -419,4 +419,4 @@ class MessagesView(ttk.Frame):
             topic_name = getattr(self.selected_message, 'topic_name', f"ID: {self.selected_message.topic_id}")
             messagebox.showinfo("View Topic", 
                               f"View topic '{topic_name}'\n"
-                              f"This navigation feature is not yet implemented.") 
+                              f"This navigation feature is not yet implemented.")

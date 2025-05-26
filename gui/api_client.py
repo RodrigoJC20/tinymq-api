@@ -321,6 +321,22 @@ class ApiClient:
             print(f"Error deleting subscription: {str(e)}")
             return False
     
+    def update_subscription_status(self, subscription_id: int, active: bool) -> bool:
+        """Update the active status of a subscription."""
+        if not self.ensure_authenticated():
+            return False
+        
+        try:
+            response = requests.put(
+                f"{self.api_config.base_url}/subscriptions/{subscription_id}/status",
+                headers=self._get_headers(),
+                json={"active": active}
+            )
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Error updating subscription status: {str(e)}")
+            return False
+    
     # Message logs endpoints
     def get_messages(self, skip: int = 0, limit: int = 100) -> List[MessageLog]:
         """Get a list of message logs"""
@@ -544,4 +560,54 @@ class ApiClient:
         data = self._get(f"/topics/{topic_id}/client")
         if data:
             return Client(**data)  # Convierte el diccionario en una instancia de Client
+        return None
+    
+    def get_client_by_subscription(self, subscription_id: int) -> Optional[Client]:
+        """Fetch the client of a subscription by subscription ID."""
+        data = self._get(f"/subscriptions/{subscription_id}/client")
+        if data:
+            return Client(**data)
+        return None
+
+    def get_topic_by_subscription(self, subscription_id: int) -> Optional[Topic]:
+        """Fetch the topic of a subscription by subscription ID."""
+        data = self._get(f"/subscriptions/{subscription_id}/topic")
+        if data:
+            return Topic(**data)
+        return None
+    
+    def get_publisher_by_message(self, message_id: int) -> Optional[Client]:
+        """Fetch the publisher of a message by message ID."""
+        data = self._get(f"/messages/{message_id}/client")
+        if data:
+            return Client(**data)
+        return None
+
+    def get_topic_by_message(self, message_id: int) -> Optional[Topic]:
+        """Fetch the topic of a message by message ID."""
+        data = self._get(f"/messages/{message_id}/topic")
+        if data:
+            return Topic(**data)
+        return None
+    
+    def get_client_by_event(self, event_id: int) -> Optional[Client]:
+        """Fetch the client of a connection event by event ID."""
+        data = self._get(f"/events/{event_id}/client")
+        if data:
+            return Client(**data)
+        return None
+
+    def get_all_events_by_client(self, client_id: str, skip: int = 0, limit: int = 100) -> List[ConnectionEvent]:
+        """Fetch all connection events for a specific client with pagination."""
+        params = {"skip": skip, "limit": limit}
+        data = self._get(f"/events/by-client/{client_id}", params=params)
+        if data:
+            return [ConnectionEvent(**event_data) for event_data in data]
+        return []
+    
+    def get_event(self, event_id: int) -> Optional[ConnectionEvent]:
+        """Fetch a specific connection event by its ID."""
+        data = self._get(f"/events/{event_id}")
+        if data:
+            return ConnectionEvent(**data)
         return None
