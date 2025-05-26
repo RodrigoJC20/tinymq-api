@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from common import Client
+from dateutil.parser import parse
 
 class TopicClientView(ttk.Frame):
     def __init__(self, parent, api_client, topic_id, show_view_callback):
@@ -91,6 +92,14 @@ class TopicClientView(ttk.Frame):
             return
         
         self.detail_client_id.config(text=client.client_id)
+
+        # parse the last connected time
+        if isinstance(client.last_connected, str):
+            try:
+                client.last_connected = parse(client.last_connected).strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                client.last_connected = "Invalid date format"
+            
         self.detail_last_connected.config(text=client.last_connected or "Unknown")
         self.detail_last_ip.config(text=client.last_ip or "Unknown")
         self.detail_last_port.config(text=client.last_port or "Unknown")

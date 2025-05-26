@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from common import ConnectionEvent
+from dateutil.parser import parse
 
 class ClientEventsView(ttk.Frame):
     def __init__(self, parent, api_client, client_id, show_view_callback):
@@ -121,9 +122,14 @@ class ClientEventsView(ttk.Frame):
         # Clear existing items
         for item in self.events_tree.get_children():
             self.events_tree.delete(item)
-        
-        # Add events to treeview
+
+        # Parse timestamp to datetime
         for event in events:
+            if isinstance(event.timestamp, str):
+                event.timestamp = parse(event.timestamp)
+        # Format timestamps
+        for event in events:
+            event.timestamp = event.timestamp.strftime("%Y-%m-%d %H:%M:%S") if event.timestamp else "N/A"
             self.events_tree.insert(
                 "", "end", 
                 values=(event.id, event.event_type, event.timestamp, event.ip_address or "N/A", event.port or "N/A")

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from common import Topic
+from dateutil.parser import parse
 
 class ClientTopicsView(ttk.Frame):
     def __init__(self, parent, api_client, client_id, show_view_callback):
@@ -118,6 +119,10 @@ class ClientTopicsView(ttk.Frame):
         for item in self.topics_tree.get_children():
             self.topics_tree.delete(item)
         
+        # parse created_at to datetime
+        for topic in topics:
+            topic.created_at = parse(topic.created_at).strftime("%Y-%m-%d %H:%M:%S") if topic.created_at else "N/A"
+
         # Add topics to treeview
         for topic in topics:
             self.topics_tree.insert(

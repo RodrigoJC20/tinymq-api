@@ -5,6 +5,7 @@ import time
 import sys
 import os
 from datetime import datetime
+from dateutil.parser import parse
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -237,9 +238,8 @@ class DashboardView(ttk.Frame):
                 # Handle timestamp consistently
                 if isinstance(event.timestamp, str) and event.timestamp:
                     try:
-                        from datetime import datetime
                         # Try to parse the string to datetime
-                        timestamp = datetime.strptime(event.timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+                        timestamp = parse(event.timestamp).strftime("%Y-%m-%d %H:%M:%S")
                     except ValueError:
                         # If parsing fails, just use the string as is
                         timestamp = event.timestamp

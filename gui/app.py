@@ -10,25 +10,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Import views
 from gui.views.login import LoginView
 from gui.views.dashboard import DashboardView
-from gui.views.clients import ClientsView
+from gui.views.client.clients import ClientsView
 from gui.views.settings import SettingsView
-from gui.views.topics import TopicsView
-from gui.views.subscriptions import SubscriptionsView
-from gui.views.messages import MessagesView
-from gui.views.events import EventsView
-from gui.views.client_topics import ClientTopicsView
-from gui.views.client_subscriptions import ClientSubscriptionsView
-from gui.views.client_messages import ClientMessagesView
-from gui.views.client_events import ClientEventsView
-from gui.views.topic_subscriptions import TopicSubscriptionsView
-from gui.views.topic_messages import TopicMessagesView
-from gui.views.topic_client import TopicClientView
-from gui.views.subscription_client import SubscriptionClientView
-from gui.views.subscription_topic import SubscriptionTopicView
-from gui.views.message_publisher import MessagePublisherView
-from gui.views.message_topic import MessageTopicView
-from gui.views.event_all_client_events import EventAllClientEventsView
-from gui.views.event_client import EventClientView
+from gui.views.topic.topics import TopicsView
+from gui.views.subscription.subscriptions import SubscriptionsView
+from gui.views.message.messages import MessagesView
+from gui.views.event.events import EventsView
+from gui.views.client.client_topics import ClientTopicsView
+from gui.views.client.client_subscriptions import ClientSubscriptionsView
+from gui.views.client.client_messages import ClientMessagesView
+from gui.views.client.client_events import ClientEventsView
+from gui.views.topic.topic_subscriptions import TopicSubscriptionsView
+from gui.views.topic.topic_messages import TopicMessagesView
+from gui.views.topic.topic_client import TopicClientView
+from gui.views.subscription.subscription_client import SubscriptionClientView
+from gui.views.subscription.subscription_topic import SubscriptionTopicView
+from gui.views.message.message_publisher import MessagePublisherView
+from gui.views.message.message_topic import MessageTopicView
+from gui.views.event.event_all_client_events import EventAllClientEventsView
+from gui.views.event.event_client import EventClientView
 
 class TinyMQMonitorApp:
     """Main TinyMQ Monitor application"""

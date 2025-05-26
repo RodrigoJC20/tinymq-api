@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
+from dateutil.parser import parse
 
 class MessageTopicView(ttk.Frame):
     def __init__(self, parent, api_client, message_id, show_view_callback):
@@ -63,7 +64,7 @@ class MessageTopicView(ttk.Frame):
             self.topic_id_label.config(text=topic.id)
             self.topic_name_label.config(text=topic.name)
             self.owner_client_id_label.config(text=topic.owner_client_id)
-            self.created_at_label.config(text=topic.created_at or "N/A")
+            self.created_at_label.config(text=parse(topic.created_at).strftime("%Y-%m-%d %H:%M:%S") if topic.created_at else "N/A")
             self.status_var.set("Topic details loaded")
         else:
             self.status_var.set("Failed to load topic details")

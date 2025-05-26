@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from common import MessageLog
+from dateutil.parser import parse
 
 class ClientMessagesView(ttk.Frame):
     def __init__(self, parent, api_client, client_id, show_view_callback):
@@ -119,7 +120,12 @@ class ClientMessagesView(ttk.Frame):
         # Clear existing items
         for item in self.messages_tree.get_children():
             self.messages_tree.delete(item)
-        
+
+        # Parse published_at to datetime
+        for msg in messages:
+            if isinstance(msg.published_at, str):
+                msg.published_at = parse(msg.published_at).strftime("%Y-%m-%d %H:%M:%S")
+
         # Add messages to treeview
         for msg in messages:
             self.messages_tree.insert(

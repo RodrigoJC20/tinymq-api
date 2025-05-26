@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
+from dateutil.parser import parse
 
 class MessagePublisherView(ttk.Frame):
     def __init__(self, parent, api_client, message_id, show_view_callback):
@@ -65,7 +66,7 @@ class MessagePublisherView(ttk.Frame):
         publisher = self.api_client.get_publisher_by_message(self.message_id)
         if publisher:
             self.client_id_label.config(text=publisher.client_id)
-            self.last_connected_label.config(text=publisher.last_connected or "N/A")
+            self.last_connected_label.config(text=parse(publisher.last_connected).strftime("%Y-%m-%d %H:%M:%S") if publisher.last_connected else "N/A")
             self.last_ip_label.config(text=publisher.last_ip or "N/A")
             self.last_port_label.config(text=publisher.last_port or "N/A")
             self.connection_count_label.config(text=publisher.connection_count)
