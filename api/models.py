@@ -72,12 +72,12 @@ class MessageLog(Base):
     __tablename__ = "message_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    publisher_client_id = Column(String, ForeignKey("clients.client_id"))
-    topic_id = Column(Integer, ForeignKey("topics.id"))
-    payload_size = Column(Integer)
-    payload_preview = Column(String)
-    # payload_data = Column(JSONB, nullable=True) # Temporarily commented out
-    published_at = Column(DateTime)
+    publisher_client_id = Column(String, ForeignKey("clients.client_id"), nullable=False)
+    topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
+    payload_size = Column(Integer, nullable=False)
+    payload_preview = Column(String, nullable=True)
+    payload_data = Column(JSONB, nullable=True)
+    published_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relationships
     publisher = relationship("Client", back_populates="messages")
@@ -102,4 +102,4 @@ def get_db():
     try:
         yield db
     finally:
-        db.close() 
+        db.close()

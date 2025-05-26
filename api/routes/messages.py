@@ -37,11 +37,31 @@ class MessageLogDetail(MessageLogResponse):
     class Config:
         from_attributes = True
 
+class PublisherResponse(BaseModel):
+    id: int
+    client_id: str
+    last_connected: Optional[datetime] = None
+    last_ip: Optional[str] = None
+    last_port: Optional[int] = None
+    connection_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+class TopicResponse(BaseModel):
+    id: int
+    name: str
+    owner_client_id: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 # Routes
 @router.get("/", response_model=List[MessageLogDetail])
 def get_messages(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(10000, ge=1, le=1000), # Adjusted limit to 10000
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -101,7 +121,7 @@ def get_message(
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found")
     
-    msg_dict = {
+    return {
         "id": message.id,
         "publisher_client_id": message.publisher_client_id,
         "topic_id": message.topic_id,
@@ -111,8 +131,6 @@ def get_message(
         "published_at": message.published_at,
         "topic_name": message.topic_name
     }
-    
-    return msg_dict
 
 @router.delete("/{message_id}", status_code=204)
 def delete_message(
@@ -221,4 +239,36 @@ def get_messages_by_topic(
         }
         result.append(msg_dict)
     
-    return result 
+    return result
+
+@router.get("/{message_id}/client", response_model=PublisherResponse)
+def get_publisher_by_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    message = db.query(MessageLog).filter(MessageLog.id == message_id).first()
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    publisher = db.query(Client).filter(Client.client_id == message.publisher_client_id).first()
+    if publisher is None:
+        raise HTTPException(status_code=404, detail="Publisher not found")
+    
+    return publisher
+
+@router.get("/{message_id}/topic", response_model=TopicResponse)
+def get_topic_by_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    message = db.query(MessageLog).filter(MessageLog.id == message_id).first()
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    topic = db.query(Topic).filter(Topic.id == message.topic_id).first()
+    if topic is None:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    
+    return topic

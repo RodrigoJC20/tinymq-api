@@ -10,12 +10,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Import views
 from gui.views.login import LoginView
 from gui.views.dashboard import DashboardView
-from gui.views.clients import ClientsView
+from gui.views.client.clients import ClientsView
 from gui.views.settings import SettingsView
-from gui.views.topics import TopicsView
-from gui.views.subscriptions import SubscriptionsView
-from gui.views.messages import MessagesView
-from gui.views.events import EventsView
+from gui.views.topic.topics import TopicsView
+from gui.views.subscription.subscriptions import SubscriptionsView
+from gui.views.message.messages import MessagesView
+from gui.views.event.events import EventsView
+from gui.views.client.client_topics import ClientTopicsView
+from gui.views.client.client_subscriptions import ClientSubscriptionsView
+from gui.views.client.client_messages import ClientMessagesView
+from gui.views.client.client_events import ClientEventsView
+from gui.views.topic.topic_subscriptions import TopicSubscriptionsView
+from gui.views.topic.topic_messages import TopicMessagesView
+from gui.views.topic.topic_client import TopicClientView
+from gui.views.subscription.subscription_client import SubscriptionClientView
+from gui.views.subscription.subscription_topic import SubscriptionTopicView
+from gui.views.message.message_publisher import MessagePublisherView
+from gui.views.message.message_topic import MessageTopicView
+from gui.views.event.event_all_client_events import EventAllClientEventsView
+from gui.views.event.event_client import EventClientView
 
 class TinyMQMonitorApp:
     """Main TinyMQ Monitor application"""
@@ -104,6 +117,32 @@ class TinyMQMonitorApp:
             self.current_view = MessagesView(self.main_frame, self.api_client, self.show_view)
         elif view_name == "events":
             self.current_view = EventsView(self.main_frame, self.api_client, self.show_view)
+        elif view_name == "client_topics":
+            self.current_view = ClientTopicsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "client_subscriptions":
+            self.current_view = ClientSubscriptionsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "client_messages":
+            self.current_view = ClientMessagesView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "client_events":
+            self.current_view = ClientEventsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "topic_subscriptions":
+            self.current_view = TopicSubscriptionsView(self.main_frame, self.api_client, kwargs["topic_id"], self.show_view)
+        elif view_name == "topic_messages":
+            self.current_view = TopicMessagesView(self.main_frame, self.api_client, kwargs["topic_id"], self.show_view)
+        elif view_name == "topic_client":
+            self.current_view = TopicClientView(self.main_frame, self.api_client, kwargs["topic_id"], self.show_view)
+        elif view_name == "subscription_client":
+            self.current_view = SubscriptionClientView(self.main_frame, self.api_client, kwargs["subscription_id"], self.show_view)
+        elif view_name == "subscription_topic":
+            self.current_view = SubscriptionTopicView(self.main_frame, self.api_client, kwargs["subscription_id"], self.show_view)
+        elif view_name == "message_publisher":
+            self.current_view = MessagePublisherView(self.main_frame, self.api_client, kwargs["message_id"], self.show_view)
+        elif view_name == "message_topic":
+            self.current_view = MessageTopicView(self.main_frame, self.api_client, kwargs["message_id"], self.show_view)
+        elif view_name == "event_all_client_events": 
+            self.current_view = EventAllClientEventsView(self.main_frame, self.api_client, kwargs["client_id"], self.show_view)
+        elif view_name == "event_client":
+            self.current_view = EventClientView(self.main_frame, self.api_client, kwargs["event_id"], self.show_view)
         else:
             # Handle unknown views
             messagebox.showerror("Error", f"Unknown view: {view_name}")
@@ -133,4 +172,4 @@ class TinyMQMonitorApp:
 
 if __name__ == "__main__":
     app = TinyMQMonitorApp()
-    app.run() 
+    app.run()

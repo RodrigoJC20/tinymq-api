@@ -164,14 +164,14 @@ class MessagesView(ttk.Frame):
         view_publisher_btn = ttk.Button(
             action_frame, 
             text="View Publisher", 
-            command=self.view_publisher
+            command=lambda: self.show_view_callback("message_publisher", message_id=self.selected_message.id)
         )
         view_publisher_btn.grid(row=0, column=0, padx=5)
         
         view_topic_btn = ttk.Button(
             action_frame, 
             text="View Topic", 
-            command=self.view_topic
+            command=lambda: self.show_view_callback("message_topic", message_id=self.selected_message.id)
         )
         view_topic_btn.grid(row=0, column=1, padx=5)
         
@@ -309,7 +309,6 @@ class MessagesView(ttk.Frame):
             threading.Thread(target=self._fetch_message_details, args=(message_id,), daemon=True).start()
         else:
             self.clear_message_details()
-            self.update_detail_buttons_state(False)
     
     def _fetch_message_details(self, message_id):
         """Background thread to fetch message details"""
@@ -393,11 +392,29 @@ class MessagesView(ttk.Frame):
         """Enable or disable the detail action buttons"""
         state = ["!disabled"] if enabled else ["disabled"]
         
-        # Get all buttons in the action frame
-        action_frame = self.winfo_children()[1].winfo_children()[1].winfo_children()[7]
-        for child in action_frame.winfo_children():
-            if isinstance(child, ttk.Button):
-                child.state(state)
+        # Get reference to action frame directly
+        try:
+            # Find the action frame which is in the details frame
+            content_frame = self.winfo_children()[1]  # This should be the content_frame
+            if content_frame and hasattr(content_frame, 'winfo_children'):
+                details_frame = None
+                # Look for details_frame (LabelFrame with text "Message Details")
+                for child in content_frame.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and child.cget("text") == "Message Details":
+                        details_frame = child
+                        break
+                
+                if details_frame:
+                    # Look for the action_frame which is a regular Frame in the details_frame
+                    for child in details_frame.winfo_children():
+                        if isinstance(child, ttk.Frame):
+                            # This should be the action_frame
+                            for button in child.winfo_children():
+                                if isinstance(button, ttk.Button):
+                                    button.state(state)
+        except (IndexError, AttributeError) as e:
+            print(f"Error updating button states: {e}")
+            # If there's an error, fail silently - the buttons just won't be enabled/disabled
     
     def view_publisher(self):
         """Navigate to the client details view for this message's publisher"""

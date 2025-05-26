@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 import threading
 import sys
 import os
-from datetime import datetime
+from dateutil.parser import parse
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -272,9 +272,8 @@ class ClientsView(ttk.Frame):
             # Check if last_connected is a string and convert to datetime if needed
             if isinstance(client.last_connected, str) and client.last_connected:
                 try:
-                    from datetime import datetime
                     # Try to parse the string to datetime
-                    last_connected = datetime.strptime(client.last_connected, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+                    last_connected = parse(client.last_connected).strftime("%Y-%m-%d %H:%M:%S")
                 except ValueError:
                     # If parsing fails, just use the string as is
                     last_connected = client.last_connected
@@ -405,8 +404,8 @@ class ClientsView(ttk.Frame):
         # Handle last_connected consistently with _update_client_list
         if isinstance(client.last_connected, str) and client.last_connected:
             try:
-                from datetime import datetime
-                last_connected = datetime.strptime(client.last_connected, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+                # Try to parse the string to datetime
+                last_connected = parse(client.last_connected).strftime("%Y-%m-%d %H:%M:%S")
             except ValueError:
                 last_connected = client.last_connected
         elif hasattr(client.last_connected, 'strftime'):
@@ -525,26 +524,20 @@ class ClientsView(ttk.Frame):
         """Navigate to topics view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to topics view
-        messagebox.showinfo("Not Implemented", "View topics by client feature coming soon!")
-    
+        self.show_view_callback("client_topics", client_id=self.selected_client.client_id)
+
     def view_client_subscriptions(self):
         """Navigate to subscriptions view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to subscriptions view
-        messagebox.showinfo("Not Implemented", "View subscriptions by client feature coming soon!")
-    
+        self.show_view_callback("client_subscriptions", client_id=self.selected_client.client_id)
+
     def view_client_messages(self):
         """Navigate to messages view filtered by client"""
         if not self.selected_client:
             return
-        
-        # This would require passing filter info to messages view
-        messagebox.showinfo("Not Implemented", "View messages by client feature coming soon!")
-    
+        self.show_view_callback("client_messages", client_id=self.selected_client.client_id)
+
     def view_client_events(self):
         """Navigate to events view filtered by client"""
         if not self.selected_client:

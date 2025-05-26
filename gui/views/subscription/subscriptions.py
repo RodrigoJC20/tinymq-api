@@ -167,14 +167,14 @@ class SubscriptionsView(ttk.Frame):
         view_client_btn = ttk.Button(
             action_frame, 
             text="View Client", 
-            command=self.view_client
+            command=lambda: self.show_view_callback("subscription_client", subscription_id=self.selected_subscription.id)
         )
         view_client_btn.grid(row=0, column=1, padx=5)
         
         view_topic_btn = ttk.Button(
             action_frame, 
             text="View Topic", 
-            command=self.view_topic
+            command=lambda: self.show_view_callback("subscription_topic", subscription_id=self.selected_subscription.id)
         )
         view_topic_btn.grid(row=0, column=2, padx=5)
         
@@ -331,7 +331,6 @@ class SubscriptionsView(ttk.Frame):
             threading.Thread(target=self._fetch_subscription_details, args=(subscription_id,), daemon=True).start()
         else:
             self.clear_subscription_details()
-            self.update_detail_buttons_state(False)
     
     def _fetch_subscription_details(self, subscription_id):
         """Background thread to fetch subscription details"""
@@ -411,11 +410,29 @@ class SubscriptionsView(ttk.Frame):
         """Enable or disable the detail action buttons"""
         state = ["!disabled"] if enabled else ["disabled"]
         
-        # Get all buttons in the action frame
-        action_frame = self.winfo_children()[1].winfo_children()[1].winfo_children()[6]
-        for child in action_frame.winfo_children():
-            if isinstance(child, ttk.Button):
-                child.state(state)
+         # Get reference to action frame directly
+        try:
+            # Find the action frame which is in the details frame
+            content_frame = self.winfo_children()[1]  # This should be the content_frame
+            if content_frame and hasattr(content_frame, 'winfo_children'):
+                details_frame = None
+                # Look for details_frame (LabelFrame with text "Subscription Details")
+                for child in content_frame.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and child.cget("text") == "Subscription Details":
+                        details_frame = child
+                        break
+                
+                if details_frame:
+                    # Look for the action_frame which is a regular Frame in the details_frame
+                    for child in details_frame.winfo_children():
+                        if isinstance(child, ttk.Frame):
+                            # This should be the action_frame
+                            for button in child.winfo_children():
+                                if isinstance(button, ttk.Button):
+                                    button.state(state)
+        except (IndexError, AttributeError) as e:
+            print(f"Error updating button states: {e}")
+            # If there's an error, fail silently - the buttons just won't be enabled/disabled
     
     def toggle_subscription_status(self):
         """Toggle the active status of the selected subscription"""
@@ -424,7 +441,7 @@ class SubscriptionsView(ttk.Frame):
             
         # Determine the new status (opposite of current)
         new_status = not self.selected_subscription.active
-        action = "activate" if new_status else "deactivate"
+        action = "activate" if new_status else "desactivate"
         
         # Confirm the action
         confirm = messagebox.askyesno(
@@ -446,21 +463,26 @@ class SubscriptionsView(ttk.Frame):
         if not self.selected_subscription:
             return
             
-        # This would call the API to toggle status
-        # Since we don't have a specific method for this, we'll implement a placeholder
-        # In a real app, you would have an API endpoint like:
-        # success = self.api_client.update_subscription_status(self.selected_subscription.id, new_status)
-        success = False
-        
-        # Show the message since this feature isn't fully implemented
-        self.after(0, lambda: messagebox.showinfo(
-            "Not Fully Implemented",
-            "Changing subscription status is not fully implemented yet.\n"
-            "The API needs an endpoint for updating subscription status."
-        ))
-        
-        # For now, just refresh the view
-        self.after(0, self.load_subscriptions)
+        try:
+            # Call the API to update the subscription status
+            success = self.api_client.update_subscription_status(self.selected_subscription.id, new_status)
+            
+            if success:
+                # Update the UI to reflect the new status
+                self.after(0, lambda: self.status_var.set("Subscription status updated successfully"))
+                self.after(0, self.load_subscriptions)
+            else:
+                self.after(0, lambda: messagebox.showerror(
+                    "Update Failed", 
+                    "Failed to update subscription status"
+                ))
+                self.after(0, lambda: self.status_var.set("Update failed"))
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror(
+                "Error", 
+                f"An error occurred while updating subscription status: {str(e)}"
+            ))
+            self.after(0, lambda: self.status_var.set("Error updating status"))
     
     def view_client(self):
         """Navigate to the client details view for this subscription's client"""

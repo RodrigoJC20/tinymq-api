@@ -27,6 +27,17 @@ class ConnectionEventResponse(ConnectionEventBase):
     class Config:
         from_attributes = True
 
+class ClientResponse(BaseModel):
+    id: int
+    client_id: str
+    last_connected: Optional[datetime] = None
+    last_ip: Optional[str] = None
+    last_port: Optional[int] = None
+    connection_count: int = 0
+
+    class Config:
+        from_attributes = True
+
 # Routes
 @router.get("/", response_model=List[ConnectionEventResponse])
 def get_events(
@@ -96,4 +107,33 @@ def get_events_by_client(
         
     events = query.offset(skip).limit(limit).all()
     
-    return events 
+    return events
+
+@router.get("/{event_id}/client", response_model=ClientResponse)
+def get_client_by_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    event = db.query(ConnectionEvent).filter(ConnectionEvent.id == event_id).first()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    client = db.query(Client).filter(Client.client_id == event.client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    return client
+
+@router.get("/{client_id}/all-events", response_model=List[ConnectionEventResponse])
+def get_all_events_by_client(
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    client = db.query(Client).filter(Client.client_id == client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    events = db.query(ConnectionEvent).filter(ConnectionEvent.client_id == client_id).order_by(ConnectionEvent.timestamp.desc()).all()
+    return events

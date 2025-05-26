@@ -169,17 +169,17 @@ class EventsView(ttk.Frame):
         view_client_btn = ttk.Button(
             action_frame, 
             text="View Client", 
-            command=self.view_client
+            command=lambda: self.show_view_callback("event_client", event_id=self.selected_event.id)
         )
         view_client_btn.grid(row=0, column=0, padx=5)
-        
+
         view_client_events_btn = ttk.Button(
             action_frame, 
             text="View All Client Events", 
-            command=self.view_client_events
+            command=lambda: self.show_view_callback("event_all_client_events", client_id=self.selected_event.client_id)
         )
         view_client_events_btn.grid(row=0, column=1, padx=5)
-        
+
         # Status bar
         status_frame = ttk.Frame(self)
         status_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
@@ -333,7 +333,6 @@ class EventsView(ttk.Frame):
             threading.Thread(target=self._fetch_event_details, args=(event_id,), daemon=True).start()
         else:
             self.clear_event_details()
-            self.update_detail_buttons_state(False)
     
     def _fetch_event_details(self, event_id):
         """Background thread to fetch event details"""
@@ -404,25 +403,39 @@ class EventsView(ttk.Frame):
     
     def update_detail_buttons_state(self, enabled):
         """Enable or disable the detail action buttons"""
-        state = ["!disabled"] if enabled else ["disabled"]
+        state = ["!disabled"] if enabled and self.selected_event else ["disabled"]
         
-        # Get all buttons in the action frame
-        action_frame = self.winfo_children()[1].winfo_children()[1].winfo_children()[6]
-        for child in action_frame.winfo_children():
-            if isinstance(child, ttk.Button):
-                child.state(state)
-    
+         # Get reference to action frame directly
+        try:
+            # Find the action frame which is in the details frame
+            content_frame = self.winfo_children()[1]  # This should be the content_frame
+            if content_frame and hasattr(content_frame, 'winfo_children'):
+                details_frame = None
+                # Look for details_frame (LabelFrame with text "Event Details")
+                for child in content_frame.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and child.cget("text") == "Event Details":
+                        details_frame = child
+                        break
+                
+                if details_frame:
+                    # Look for the action_frame which is a regular Frame in the details_frame
+                    for child in details_frame.winfo_children():
+                        if isinstance(child, ttk.Frame):
+                            # This should be the action_frame
+                            for button in child.winfo_children():
+                                if isinstance(button, ttk.Button):
+                                    button.state(state)
+        except (IndexError, AttributeError) as e:
+            print(f"Error updating button states: {e}")
+            # If there's an error, fail silently - the buttons just won't be enabled/disabled
+
     def view_client(self):
         """Navigate to the client details view for this event's client"""
         if self.selected_event:
-            # This would normally transition to the client view
-            # For now, just show a message
-            messagebox.showinfo(
-                "View Client", 
-                f"View client '{self.selected_event.client_id}'\n"
-                f"This navigation feature is not yet implemented."
-            )
-    
+            self.show_view_callback("event_client", event_id=self.selected_event.id)
+        else:
+            messagebox.showerror("Error", "No event selected.")
+
     def view_client_events(self):
         """Filter events to only show those for this client"""
         if self.selected_event:
