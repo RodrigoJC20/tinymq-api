@@ -28,6 +28,8 @@ ENV/
 env/
 api_venv/
 gui_venv/
+api_env/
+gui_env/
 
 # IDE files
 .idea/
