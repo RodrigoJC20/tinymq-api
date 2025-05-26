@@ -10,6 +10,7 @@ class Client:
     last_ip: Optional[str] = None
     last_port: Optional[int] = None
     connection_count: int = 0
+    active: bool = False
 
 @dataclass
 class Topic:

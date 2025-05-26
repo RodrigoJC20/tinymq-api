@@ -28,11 +28,18 @@ class EventsView(ttk.Frame):
         # Selected event for details
         self.selected_event = None
         
+        # Auto-refresh variables
+        self.auto_refresh_job = None
+        self.is_refreshing = False
+        
         # Setup UI components
         self.setup_ui()
         
         # Load initial data
         self.load_events()
+        
+        # Start auto-refresh
+        self.start_auto_refresh()
     
     def setup_ui(self):
         # Configure the grid
@@ -186,12 +193,16 @@ class EventsView(ttk.Frame):
     
     def load_events(self):
         """Loads connection event data from API"""
+        if not self.winfo_exists():
+            return
+            
         self.status_var.set("Loading connection events...")
         self.update_idletasks()
         
-        # Clear selected event
-        self.selected_event = None
-        self.clear_event_details()
+        # Clear selected event only if this is not an auto-refresh
+        if not hasattr(self, '_auto_refresh_in_progress'):
+            self.selected_event = None
+            self.clear_event_details()
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
@@ -208,17 +219,39 @@ class EventsView(ttk.Frame):
     
     def _fetch_events(self, skip, event_type):
         """Background thread to fetch events from API"""
-        events = self.api_client.get_events(
-            skip=skip, 
-            limit=self.page_size, 
-            event_type=event_type
-        )
-        
-        # Update UI in main thread
-        self.after(0, lambda: self._update_event_list(events))
+        try:
+            events = self.api_client.get_events(
+                skip=skip, 
+                limit=self.page_size, 
+                event_type=event_type
+            )
+            
+            # Update UI in main thread only if widget still exists
+            if self.winfo_exists():
+                self.after(0, lambda: self._update_event_list(events))
+                self.after(0, lambda: self.status_var.set(f"Loaded {len(events)} events"))
+            
+            # Schedule next auto-refresh if enabled
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_events)
+                self.auto_refresh_job.start()
+                
+        except Exception as e:
+            print(f"Error loading events: {str(e)}")
+            if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to load events: {str(e)}"))
+            
+            # Still schedule next refresh even on error
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_events)
+                self.auto_refresh_job.start()
     
     def _update_event_list(self, events):
         """Updates the events treeview with data"""
+        if not self.winfo_exists() or not hasattr(self, 'events_tree') or not self.events_tree.winfo_exists():
+            return
+
         # Clear existing entries
         for row in self.events_tree.get_children():
             self.events_tree.delete(row)
@@ -228,9 +261,7 @@ class EventsView(ttk.Frame):
             # Format the timestamp if it exists
             timestamp = event.timestamp
             if timestamp:
-                # Format date for display
                 if isinstance(timestamp, str):
-                    # If it's a string, it's likely ISO format
                     try:
                         timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                     except ValueError:
@@ -239,7 +270,6 @@ class EventsView(ttk.Frame):
                 if isinstance(timestamp, datetime):
                     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
             
-            # Insert into treeview
             self.events_tree.insert(
                 "", "end", 
                 values=(
@@ -252,32 +282,32 @@ class EventsView(ttk.Frame):
                 )
             )
             
-        # Update status
-        if events:
-            self.status_var.set(f"Loaded {len(events)} connection events")
-        else:
-            self.status_var.set("No connection events found")
-            
-        # Update pagination buttons
-        self.update_pagination()
+        if self.winfo_exists(): # Check before updating status and pagination
+            if events:
+                self.status_var.set(f"Loaded {len(events)} connection events")
+            else:
+                self.status_var.set("No connection events found")
+            self.update_pagination()
     
     def update_pagination(self):
         """Update pagination controls based on current page"""
-        self.page_label.config(text=f"Page {self.page + 1}")
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'page_label') and self.page_label.winfo_exists():
+            self.page_label.config(text=f"Page {self.page + 1}")
         
-        # Enable/disable prev button based on current page
-        if self.page > 0:
-            self.prev_page_btn.state(["!disabled"])
-        else:
-            self.prev_page_btn.state(["disabled"])
+        if hasattr(self, 'prev_page_btn') and self.prev_page_btn.winfo_exists():
+            if self.page > 0:
+                self.prev_page_btn.state(["!disabled"])
+            else:
+                self.prev_page_btn.state(["disabled"])
             
-        # Logic for next button could depend on if we know there are more pages
-        # For now, we'll disable it if we received fewer items than the page size
-        children_count = len(self.events_tree.get_children())
-        if children_count < self.page_size:
-            self.next_page_btn.state(["disabled"])
-        else:
-            self.next_page_btn.state(["!disabled"])
+        if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'events_tree') and self.events_tree.winfo_exists():
+            children_count = len(self.events_tree.get_children())
+            if children_count < self.page_size:
+                self.next_page_btn.state(["disabled"])
+            else:
+                self.next_page_btn.state(["!disabled"])
     
     def prev_page(self):
         """Go to previous page of events"""
@@ -307,54 +337,69 @@ class EventsView(ttk.Frame):
     
     def _fetch_event_details(self, event_id):
         """Background thread to fetch event details"""
-        event = self.api_client.get_event(event_id)
-        
-        if event:
-            # Update UI in main thread
-            self.after(0, lambda: self.update_event_details(event))
-        else:
-            self.after(0, lambda: self.status_var.set("Failed to load event details"))
+        try:
+            event = self.api_client.get_event(event_id)
+            
+            if self.winfo_exists(): # Check if view still exists
+                if event:
+                    self.after(0, lambda: self.update_event_details(event))
+                else:
+                    self.after(0, lambda: self.status_var.set("Failed to load event details"))
+        except Exception as e:
+            print(f"Error fetching event details: {e}")
+            if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
     
     def update_event_details(self, event):
         """Update the event details panel with event data"""
+        if not self.winfo_exists():
+            return
         self.selected_event = event
         
-        # Format the timestamp if it exists
         timestamp = event.timestamp
         if timestamp:
-            # Format date for display
             if isinstance(timestamp, str):
                 try:
                     timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                 except ValueError:
                     pass
-            
             if isinstance(timestamp, datetime):
                 timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
         
-        # Update detail labels
-        self.detail_event_id.config(text=str(event.id))
-        self.detail_client_id.config(text=event.client_id)
-        self.detail_event_type.config(text=event.event_type)
-        self.detail_ip_address.config(text=event.ip_address or "Unknown")
-        self.detail_port.config(text=str(event.port or "Unknown"))
-        self.detail_timestamp.config(text=timestamp or "Unknown")
+        if hasattr(self, 'detail_event_id') and self.detail_event_id.winfo_exists():
+            self.detail_event_id.config(text=str(event.id))
+        if hasattr(self, 'detail_client_id') and self.detail_client_id.winfo_exists():
+            self.detail_client_id.config(text=event.client_id)
+        if hasattr(self, 'detail_event_type') and self.detail_event_type.winfo_exists():
+            self.detail_event_type.config(text=event.event_type)
+        if hasattr(self, 'detail_ip_address') and self.detail_ip_address.winfo_exists():
+            self.detail_ip_address.config(text=event.ip_address or "Unknown")
+        if hasattr(self, 'detail_port') and self.detail_port.winfo_exists():
+            self.detail_port.config(text=str(event.port or "Unknown"))
+        if hasattr(self, 'detail_timestamp') and self.detail_timestamp.winfo_exists():
+            self.detail_timestamp.config(text=timestamp or "Unknown")
         
-        # Enable action buttons
         self.update_detail_buttons_state(True)
-        
-        self.status_var.set("Event details loaded")
+        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+            self.status_var.set("Event details loaded")
     
     def clear_event_details(self):
         """Clear the event details panel"""
-        self.detail_event_id.config(text="")
-        self.detail_client_id.config(text="")
-        self.detail_event_type.config(text="")
-        self.detail_ip_address.config(text="")
-        self.detail_port.config(text="")
-        self.detail_timestamp.config(text="")
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'detail_event_id') and self.detail_event_id.winfo_exists():
+            self.detail_event_id.config(text="")
+        if hasattr(self, 'detail_client_id') and self.detail_client_id.winfo_exists():
+            self.detail_client_id.config(text="")
+        if hasattr(self, 'detail_event_type') and self.detail_event_type.winfo_exists():
+            self.detail_event_type.config(text="")
+        if hasattr(self, 'detail_ip_address') and self.detail_ip_address.winfo_exists():
+            self.detail_ip_address.config(text="")
+        if hasattr(self, 'detail_port') and self.detail_port.winfo_exists():
+            self.detail_port.config(text="")
+        if hasattr(self, 'detail_timestamp') and self.detail_timestamp.winfo_exists():
+            self.detail_timestamp.config(text="")
         
-        # Disable action buttons
         self.update_detail_buttons_state(False)
     
     def update_detail_buttons_state(self, enabled):
@@ -387,4 +432,22 @@ class EventsView(ttk.Frame):
                 "View Client Events", 
                 f"Filter events for client '{self.selected_event.client_id}'\n"
                 f"This filtering feature is not yet implemented."
-            ) 
+            )
+
+    def start_auto_refresh(self):
+        """Start auto-refresh job"""
+        if not self.is_refreshing:
+            self.is_refreshing = True
+            self.auto_refresh_job = threading.Timer(1.0, self.load_events)
+            self.auto_refresh_job.start()
+
+    def stop_auto_refresh(self):
+        """Stop auto-refresh job"""
+        self.is_refreshing = False
+        if self.auto_refresh_job:
+            self.auto_refresh_job.cancel()
+            self.auto_refresh_job = None
+
+    def on_destroy(self):
+        """Called when the view is being destroyed"""
+        self.stop_auto_refresh() 
