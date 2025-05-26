@@ -25,11 +25,18 @@ class TopicsView(ttk.Frame):
         # Selected topic for details
         self.selected_topic = None
         
+        # Auto-refresh variables
+        self.auto_refresh_job = None
+        self.is_refreshing = False
+        
         # Setup UI components
         self.setup_ui()
         
         # Load initial data
         self.load_topics()
+        
+        # Start auto-refresh
+        self.start_auto_refresh()
     
     def setup_ui(self):
         # Configure the grid
@@ -154,13 +161,12 @@ class TopicsView(ttk.Frame):
         )
         view_owner_btn.grid(row=0, column=2, padx=5)
         
-        # delete_btn = ttk.Button(
-        #     action_frame, 
-        #     text="Delete Topic", 
-        #     command=self.delete_topic,
-        #     style="Danger.TButton"  # This would need a custom style definition
-        # )
-        # delete_btn.grid(row=0, column=3, padx=5)
+        delete_btn = ttk.Button(
+            action_frame, 
+            text="Remove Topic", 
+            command=self.delete_topic
+        )
+        delete_btn.grid(row=0, column=3, padx=5)
         
         # Status bar
         status_frame = ttk.Frame(self)
@@ -175,79 +181,103 @@ class TopicsView(ttk.Frame):
     
     def load_topics(self):
         """Loads topic data from API"""
+        if not self.winfo_exists():
+            return
+            
         self.status_var.set("Loading topics...")
         self.update_idletasks()
         
-        # Clear selected topic
-        self.selected_topic = None
-        self.clear_topic_details()
+        # Store currently selected topic ID to restore after refresh
+        selected_topic_id = None
+        if self.selected_topic:
+            selected_topic_id = self.selected_topic.id
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
         
         # Start loading in background thread
-        threading.Thread(target=self._fetch_topics, args=(skip,), daemon=True).start()
+        threading.Thread(target=self._fetch_topics, args=(skip, selected_topic_id), daemon=True).start()
     
-    def _fetch_topics(self, skip):
+    def _fetch_topics(self, skip, selected_topic_id=None):
         """Background thread to fetch topics from API"""
-        topics = self.api_client.get_topics(skip=skip, limit=self.page_size)
-        
-        # Update UI in main thread
-        self.after(0, lambda: self._update_topic_list(topics))
+        try:
+            topics = self.api_client.get_topics(skip=skip, limit=self.page_size)
+            
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self._update_topic_list(topics, selected_topic_id))
+                self.after(0, lambda: self.status_var.set(f"Loaded {len(topics)} topics"))
+            
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_topics)
+                self.auto_refresh_job.start()
+                
+        except Exception as e:
+            print(f"Error loading topics: {str(e)}")
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to load topics: {str(e)}"))
+            
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_topics)
+                self.auto_refresh_job.start()
     
-    def _update_topic_list(self, topics):
+    def _update_topic_list(self, topics, selected_topic_id=None):
         """Updates the topics treeview with data"""
-        # Clear existing entries
+        if not self.winfo_exists() or not hasattr(self, 'topics_tree') or not self.topics_tree.winfo_exists():
+            return
+
         for row in self.topics_tree.get_children():
             self.topics_tree.delete(row)
-            
-        # Add topics to treeview
+        
+        item_to_select = None
         for topic in topics:
-            # Format the created_at timestamp if it exists
             created_at = topic.created_at
             if created_at:
-                # Format date for display
                 if isinstance(created_at, str):
-                    # If it's a string, it's likely ISO format
                     try:
                         created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                     except ValueError:
                         pass
-                
                 if isinstance(created_at, datetime):
                     created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
             
-            self.topics_tree.insert(
+            item = self.topics_tree.insert(
                 "", "end", 
                 values=(topic.id, topic.name, topic.owner_client_id, created_at)
             )
+            if selected_topic_id and topic.id == selected_topic_id:
+                item_to_select = item
+        
+        if item_to_select and self.topics_tree.exists(item_to_select):
+            self.topics_tree.selection_set(item_to_select)
+            self.topics_tree.focus(item_to_select)
             
-        # Update status
-        if topics:
-            self.status_var.set(f"Loaded {len(topics)} topics")
-        else:
-            self.status_var.set("No topics found")
-            
-        # Update pagination buttons
-        self.update_pagination()
+        if self.winfo_exists(): # Check before updating status and pagination
+            if topics:
+                self.status_var.set(f"Loaded {len(topics)} topics")
+            else:
+                self.status_var.set("No topics found")
+            self.update_pagination()
     
     def update_pagination(self):
         """Update pagination controls based on current page"""
-        self.page_label.config(text=f"Page {self.page + 1}")
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'page_label') and self.page_label.winfo_exists():
+            self.page_label.config(text=f"Page {self.page + 1}")
         
-        # Enable/disable prev button based on current page
-        if self.page > 0:
-            self.prev_page_btn.state(["!disabled"])
-        else:
-            self.prev_page_btn.state(["disabled"])
+        if hasattr(self, 'prev_page_btn') and self.prev_page_btn.winfo_exists():
+            if self.page > 0:
+                self.prev_page_btn.state(["!disabled"])
+            else:
+                self.prev_page_btn.state(["disabled"])
             
-        # Logic for next button could depend on if we know there are more pages
-        # For now, we'll disable it if we received fewer items than the page size
-        children_count = len(self.topics_tree.get_children())
-        if children_count < self.page_size:
-            self.next_page_btn.state(["disabled"])
-        else:
-            self.next_page_btn.state(["!disabled"])
+        if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'topics_tree') and self.topics_tree.winfo_exists():
+            children_count = len(self.topics_tree.get_children())
+            if children_count < self.page_size:
+                self.next_page_btn.state(["disabled"])
+            else:
+                self.next_page_btn.state(["!disabled"])
     
     def prev_page(self):
         """Go to previous page of topics"""
@@ -276,56 +306,65 @@ class TopicsView(ttk.Frame):
     
     def _fetch_topic_details(self, topic_id):
         """Background thread to fetch topic details"""
-        topic = self.api_client.get_topic(topic_id)
-        
-        if topic:
-            # Fetch subscription count
-            subscriptions = self.api_client.get_subscriptions_by_topic(topic_id)
-            subscription_count = len(subscriptions)
+        try:
+            topic = self.api_client.get_topic(topic_id)
             
-            # Update UI in main thread
-            self.after(0, lambda: self.update_topic_details(topic, subscription_count))
-        else:
-            self.after(0, lambda: self.status_var.set("Failed to load topic details"))
+            if self.winfo_exists(): # Check if view still exists
+                if topic:
+                    subscriptions = self.api_client.get_subscriptions_by_topic(topic_id)
+                    subscription_count = len(subscriptions)
+                    self.after(0, lambda: self.update_topic_details(topic, subscription_count))
+                else:
+                    self.after(0, lambda: self.status_var.set("Failed to load topic details"))
+        except Exception as e:
+            print(f"Error fetching topic details: {e}")
+            if self.winfo_exists():
+                 self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
     
     def update_topic_details(self, topic, subscription_count):
         """Update the topic details panel with topic data"""
+        if not self.winfo_exists():
+            return
         self.selected_topic = topic
-        
-        # Format the created_at timestamp if it exists
         created_at = topic.created_at
         if created_at:
-            # Format date for display
             if isinstance(created_at, str):
                 try:
                     created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                 except ValueError:
                     pass
-            
             if isinstance(created_at, datetime):
                 created_at = created_at.strftime("%Y-%m-%d %H:%M:%S")
         
-        # Update detail labels
-        self.detail_topic_id.config(text=str(topic.id))
-        self.detail_name.config(text=topic.name)
-        self.detail_owner.config(text=topic.owner_client_id)
-        self.detail_created_at.config(text=created_at or "Unknown")
-        self.detail_subscription_count.config(text=str(subscription_count))
+        if hasattr(self, 'detail_topic_id') and self.detail_topic_id.winfo_exists():
+            self.detail_topic_id.config(text=str(topic.id))
+        if hasattr(self, 'detail_name') and self.detail_name.winfo_exists():
+            self.detail_name.config(text=topic.name)
+        if hasattr(self, 'detail_owner') and self.detail_owner.winfo_exists():
+            self.detail_owner.config(text=topic.owner_client_id)
+        if hasattr(self, 'detail_created_at') and self.detail_created_at.winfo_exists():
+            self.detail_created_at.config(text=created_at or "Unknown")
+        if hasattr(self, 'detail_subscription_count') and self.detail_subscription_count.winfo_exists():
+            self.detail_subscription_count.config(text=str(subscription_count))
         
-        # Enable action buttons
         self.update_detail_buttons_state(True)
-        
-        self.status_var.set("Topic details loaded")
+        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+            self.status_var.set("Topic details loaded")
     
     def clear_topic_details(self):
         """Clear the topic details panel"""
-        self.detail_topic_id.config(text="")
-        self.detail_name.config(text="")
-        self.detail_owner.config(text="")
-        self.detail_created_at.config(text="")
-        self.detail_subscription_count.config(text="")
-        
-        # Disable action buttons
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'detail_topic_id') and self.detail_topic_id.winfo_exists():
+            self.detail_topic_id.config(text="")
+        if hasattr(self, 'detail_name') and self.detail_name.winfo_exists():
+            self.detail_name.config(text="")
+        if hasattr(self, 'detail_owner') and self.detail_owner.winfo_exists():
+            self.detail_owner.config(text="")
+        if hasattr(self, 'detail_created_at') and self.detail_created_at.winfo_exists():
+            self.detail_created_at.config(text="")
+        if hasattr(self, 'detail_subscription_count') and self.detail_subscription_count.winfo_exists():
+            self.detail_subscription_count.config(text="")
         self.update_detail_buttons_state(False)
     
     def update_detail_buttons_state(self, enabled):
@@ -414,3 +453,21 @@ class TopicsView(ttk.Frame):
                 f"Failed to delete topic '{self.selected_topic.name}'"
             ))
             self.after(0, lambda: self.status_var.set("Delete failed"))
+
+    def start_auto_refresh(self):
+        """Start auto-refresh job"""
+        if not self.is_refreshing:
+            self.is_refreshing = True
+            self.auto_refresh_job = threading.Timer(1.0, self.load_topics)
+            self.auto_refresh_job.start()
+    
+    def stop_auto_refresh(self):
+        """Stop auto-refresh job"""
+        self.is_refreshing = False
+        if self.auto_refresh_job:
+            self.auto_refresh_job.cancel()
+            self.auto_refresh_job = None
+    
+    def on_destroy(self):
+        """Called when the view is being destroyed"""
+        self.stop_auto_refresh() 

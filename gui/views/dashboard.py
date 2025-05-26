@@ -260,7 +260,7 @@ class DashboardView(ttk.Frame):
         except Exception as e:
             print(f"Error updating activity list: {e}")
     
-    def start_auto_refresh(self, interval=30000):
+    def start_auto_refresh(self, interval=1000):
         """Starts auto-refresh timer"""
         if self.refresh_timer is not None:
             self.after_cancel(self.refresh_timer)

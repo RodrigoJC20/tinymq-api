@@ -22,10 +22,14 @@ class ClientBase(BaseModel):
 class ClientCreate(ClientBase):
     pass
 
+class ClientUpdate(BaseModel):
+    active: bool
+
 class ClientResponse(ClientBase):
     id: int
     last_connected: Optional[datetime] = None
     connection_count: int = 0
+    active: bool
 
     class Config:
         from_attributes = True
@@ -79,6 +83,24 @@ def get_client(
     client = db.query(Client).filter(Client.client_id == client_id).first()
     if client is None:
         raise HTTPException(status_code=404, detail="Client not found")
+    return client
+
+@router.patch("/{client_id}", response_model=ClientResponse)
+def update_client(
+    client_id: str,
+    client_update: ClientUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    client = db.query(Client).filter(Client.client_id == client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    # Update the active status
+    client.active = client_update.active
+    db.commit()
+    db.refresh(client)
+    
     return client
 
 @router.delete("/{client_id}", status_code=204)

@@ -25,11 +25,18 @@ class MessagesView(ttk.Frame):
         # Selected message for details
         self.selected_message = None
         
+        # Auto-refresh variables
+        self.auto_refresh_job = None
+        self.is_refreshing = False
+        
         # Setup UI components
         self.setup_ui()
         
         # Load initial data
         self.load_messages()
+        
+        # Start auto-refresh
+        self.start_auto_refresh()
     
     def setup_ui(self):
         # Configure the grid
@@ -181,12 +188,16 @@ class MessagesView(ttk.Frame):
     
     def load_messages(self):
         """Loads message data from API"""
+        if not self.winfo_exists():
+            return
+            
         self.status_var.set("Loading messages...")
         self.update_idletasks()
         
-        # Clear selected message
-        self.selected_message = None
-        self.clear_message_details()
+        # Clear selected message only if this is not an auto-refresh
+        if not hasattr(self, '_auto_refresh_in_progress'):
+            self.selected_message = None
+            self.clear_message_details()
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
@@ -199,99 +210,77 @@ class MessagesView(ttk.Frame):
         try:
             messages = self.api_client.get_messages(skip=skip, limit=self.page_size)
             
-            # Check if widget still exists before updating UI
-            if self.winfo_exists():
-                # Update UI in main thread
-                self.after(0, lambda msgs=messages: self._update_message_list(msgs))
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self._update_message_list(messages))
                 self.after(0, lambda: self.status_var.set(f"Loaded {len(messages)} messages"))
             
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_messages)
+                self.auto_refresh_job.start()
+                
         except Exception as e:
-            error_message = str(e)
-            print(f"Failed to get messages: {error_message}")
+            print(f"Error loading messages: {str(e)}")
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to load messages: {str(e)}"))
             
-            # Check if widget still exists before showing error
-            if self.winfo_exists():
-                self.after(0, lambda err=error_message: self.status_var.set(f"Error: {err}"))
-                self.after(0, lambda err=error_message: messagebox.showerror("Error", f"Failed to get messages: {err}"))
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_messages)
+                self.auto_refresh_job.start()
     
     def _update_message_list(self, messages):
         """Updates the messages treeview with data"""
+        if not self.winfo_exists() or not hasattr(self, 'messages_tree') or not self.messages_tree.winfo_exists():
+            return
         try:
-            # Check if treeview still exists 
-            if not self.winfo_exists() or not hasattr(self, 'messages_tree') or not self.messages_tree.winfo_exists():
-                return
-                
-            # Clear existing entries
             for row in self.messages_tree.get_children():
                 self.messages_tree.delete(row)
-                
-            # Add messages to treeview
             for msg in messages:
-                # Format the published_at timestamp if it exists
                 published_at = msg.published_at
                 if published_at:
-                    # Format date for display
                     if isinstance(published_at, str):
-                        # If it's a string, it's likely ISO format
                         try:
                             published_at = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
                         except ValueError:
                             pass
-                    
                     if isinstance(published_at, datetime):
                         published_at = published_at.strftime("%Y-%m-%d %H:%M:%S")
-                
-                # Get topic name if available, or use ID as fallback
                 topic_name = getattr(msg, 'topic_name', str(msg.topic_id))
-                
-                # Insert into treeview
                 self.messages_tree.insert(
                     "", "end", 
                     values=(msg.id, msg.publisher_client_id, topic_name, published_at, msg.payload_size)
                 )
-                
-            # Update status if it exists
-            if hasattr(self, 'status_var'):
-                if messages:
-                    self.status_var.set(f"Loaded {len(messages)} messages")
-                else:
-                    self.status_var.set("No messages found")
-                
-            # Update pagination buttons
-            self.update_pagination()
-            
+            if self.winfo_exists(): # Check before updating status and pagination
+                if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+                    if messages:
+                        self.status_var.set(f"Loaded {len(messages)} messages")
+                    else:
+                        self.status_var.set("No messages found")
+                self.update_pagination()
         except tk.TclError as e:
-            # Handle Tcl/Tk errors like invalid command name for destroyed widgets
             print(f"Tk error updating message list: {e}")
         except Exception as e:
             print(f"Error updating message list: {e}")
     
     def update_pagination(self):
         """Update pagination controls based on current page"""
+        if not self.winfo_exists():
+            return
         try:
-            # Check if widgets still exist
-            if not self.winfo_exists() or not hasattr(self, 'page_label') or not self.page_label.winfo_exists():
-                return
-                
-            self.page_label.config(text=f"Page {self.page + 1}")
-            
-            # Enable/disable prev button based on current page
+            if hasattr(self, 'page_label') and self.page_label.winfo_exists():
+                self.page_label.config(text=f"Page {self.page + 1}")
             if hasattr(self, 'prev_page_btn') and self.prev_page_btn.winfo_exists():
                 if self.page > 0:
                     self.prev_page_btn.state(["!disabled"])
                 else:
                     self.prev_page_btn.state(["disabled"])
-            
-            # Next button logic based on results
-            if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'messages_tree'):
+            if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'messages_tree') and self.messages_tree.winfo_exists():
                 client_count = len(self.messages_tree.get_children())
                 if client_count < self.page_size:
                     self.next_page_btn.state(["disabled"])
                 else:
                     self.next_page_btn.state(["!disabled"])
-                    
         except tk.TclError as e:
-            # Handle Tcl/Tk errors like invalid command name for destroyed widgets
             print(f"Tk error updating pagination: {e}")
         except Exception as e:
             print(f"Error updating pagination: {e}")
@@ -323,72 +312,80 @@ class MessagesView(ttk.Frame):
     
     def _fetch_message_details(self, message_id):
         """Background thread to fetch message details"""
-        message = self.api_client.get_message(message_id)
-        
-        if message:
-            # Update UI in main thread
-            self.after(0, lambda: self.update_message_details(message))
-        else:
-            self.after(0, lambda: self.status_var.set("Failed to load message details"))
+        try:
+            message = self.api_client.get_message(message_id)
+            if self.winfo_exists(): # Check if view still exists
+                if message:
+                    self.after(0, lambda: self.update_message_details(message))
+                else:
+                    self.after(0, lambda: self.status_var.set("Failed to load message details"))
+        except Exception as e:
+            print(f"Error fetching message details: {e}")
+            if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
     
     def update_message_details(self, message):
         """Update the message details panel with message data"""
+        if not self.winfo_exists():
+            return
         self.selected_message = message
-        
-        # Format the published_at timestamp if it exists
         published_at = message.published_at
         if published_at:
-            # Format date for display
             if isinstance(published_at, str):
                 try:
                     published_at = datetime.fromisoformat(published_at.replace('Z', '+00:00'))
                 except ValueError:
                     pass
-            
             if isinstance(published_at, datetime):
                 published_at = published_at.strftime("%Y-%m-%d %H:%M:%S")
         
-        # Update detail labels
-        self.detail_msg_id.config(text=str(message.id))
-        self.detail_publisher.config(text=message.publisher_client_id)
-        
-        # Get topic name if available, or use ID as fallback
+        if hasattr(self, 'detail_msg_id') and self.detail_msg_id.winfo_exists():
+            self.detail_msg_id.config(text=str(message.id))
+        if hasattr(self, 'detail_publisher') and self.detail_publisher.winfo_exists():
+            self.detail_publisher.config(text=message.publisher_client_id)
         topic_name = getattr(message, 'topic_name', "Unknown")
-        self.detail_topic.config(text=topic_name)
-        self.detail_topic_id.config(text=str(message.topic_id))
+        if hasattr(self, 'detail_topic') and self.detail_topic.winfo_exists():
+            self.detail_topic.config(text=topic_name)
+        if hasattr(self, 'detail_topic_id') and self.detail_topic_id.winfo_exists():
+            self.detail_topic_id.config(text=str(message.topic_id))
+        if hasattr(self, 'detail_published_at') and self.detail_published_at.winfo_exists():
+            self.detail_published_at.config(text=published_at or "Unknown")
+        if hasattr(self, 'detail_payload_size') and self.detail_payload_size.winfo_exists():
+            self.detail_payload_size.config(text=f"{message.payload_size} bytes")
         
-        self.detail_published_at.config(text=published_at or "Unknown")
-        self.detail_payload_size.config(text=f"{message.payload_size} bytes")
+        if hasattr(self, 'payload_text') and self.payload_text.winfo_exists():
+            self.payload_text.config(state="normal")
+            self.payload_text.delete(1.0, tk.END)
+            if hasattr(message, 'payload_preview') and message.payload_preview:
+                self.payload_text.insert(tk.END, message.payload_preview)
+            else:
+                self.payload_text.insert(tk.END, "(No payload preview available)")
+            self.payload_text.config(state="disabled")
         
-        # Update payload preview text
-        self.payload_text.config(state="normal")
-        self.payload_text.delete(1.0, tk.END)
-        if hasattr(message, 'payload_preview') and message.payload_preview:
-            self.payload_text.insert(tk.END, message.payload_preview)
-        else:
-            self.payload_text.insert(tk.END, "(No payload preview available)")
-        self.payload_text.config(state="disabled")
-        
-        # Enable action buttons
         self.update_detail_buttons_state(True)
-        
-        self.status_var.set("Message details loaded")
+        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+            self.status_var.set("Message details loaded")
     
     def clear_message_details(self):
         """Clear the message details panel"""
-        self.detail_msg_id.config(text="")
-        self.detail_publisher.config(text="")
-        self.detail_topic.config(text="")
-        self.detail_topic_id.config(text="")
-        self.detail_published_at.config(text="")
-        self.detail_payload_size.config(text="")
-        
-        # Clear payload preview
-        self.payload_text.config(state="normal")
-        self.payload_text.delete(1.0, tk.END)
-        self.payload_text.config(state="disabled")
-        
-        # Disable action buttons
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'detail_msg_id') and self.detail_msg_id.winfo_exists():
+            self.detail_msg_id.config(text="")
+        if hasattr(self, 'detail_publisher') and self.detail_publisher.winfo_exists():
+            self.detail_publisher.config(text="")
+        if hasattr(self, 'detail_topic') and self.detail_topic.winfo_exists():
+            self.detail_topic.config(text="")
+        if hasattr(self, 'detail_topic_id') and self.detail_topic_id.winfo_exists():
+            self.detail_topic_id.config(text="")
+        if hasattr(self, 'detail_published_at') and self.detail_published_at.winfo_exists():
+            self.detail_published_at.config(text="")
+        if hasattr(self, 'detail_payload_size') and self.detail_payload_size.winfo_exists():
+            self.detail_payload_size.config(text="")
+        if hasattr(self, 'payload_text') and self.payload_text.winfo_exists():
+            self.payload_text.config(state="normal")
+            self.payload_text.delete(1.0, tk.END)
+            self.payload_text.config(state="disabled")
         self.update_detail_buttons_state(False)
     
     def update_detail_buttons_state(self, enabled):
@@ -437,3 +434,19 @@ class MessagesView(ttk.Frame):
             messagebox.showinfo("View Topic", 
                               f"View topic '{topic_name}'\n"
                               f"This navigation feature is not yet implemented.")
+
+    def start_auto_refresh(self):
+        """Start auto-refresh"""
+        self.is_refreshing = True
+        self.load_messages()
+
+    def stop_auto_refresh(self):
+        """Stop auto-refresh"""
+        self.is_refreshing = False
+        if self.auto_refresh_job:
+            self.auto_refresh_job.cancel()
+        self.auto_refresh_job = None
+    
+    def on_destroy(self):
+        """Called when the view is being destroyed"""
+        self.stop_auto_refresh() 

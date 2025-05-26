@@ -28,11 +28,18 @@ class SubscriptionsView(ttk.Frame):
         # Selected subscription for details
         self.selected_subscription = None
         
+        # Auto-refresh variables
+        self.auto_refresh_job = None
+        self.is_refreshing = False
+        
         # Setup UI components
         self.setup_ui()
         
         # Load initial data
         self.load_subscriptions()
+        
+        # Start auto-refresh
+        self.start_auto_refresh()
     
     def setup_ui(self):
         # Configure the grid
@@ -171,13 +178,12 @@ class SubscriptionsView(ttk.Frame):
         )
         view_topic_btn.grid(row=0, column=2, padx=5)
         
-        # delete_btn = ttk.Button(
-        #     action_frame, 
-        #     text="Delete Subscription", 
-        #     command=self.delete_subscription,
-        #     style="Danger.TButton"
-        # )
-        # delete_btn.grid(row=0, column=3, padx=5)
+        delete_btn = ttk.Button(
+            action_frame, 
+            text="Remove Subscription", 
+            command=self.delete_subscription
+        )
+        delete_btn.grid(row=0, column=3, padx=5)
         
         # Status bar
         status_frame = ttk.Frame(self)
@@ -192,12 +198,16 @@ class SubscriptionsView(ttk.Frame):
     
     def load_subscriptions(self):
         """Loads subscription data from API"""
+        if not self.winfo_exists():
+            return
+            
         self.status_var.set("Loading subscriptions...")
         self.update_idletasks()
         
-        # Clear selected subscription
-        self.selected_subscription = None
-        self.clear_subscription_details()
+        # Store currently selected subscription ID to restore after refresh
+        selected_subscription_id = None
+        if self.selected_subscription:
+            selected_subscription_id = self.selected_subscription.id
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
@@ -208,77 +218,94 @@ class SubscriptionsView(ttk.Frame):
         # Start loading in background thread
         threading.Thread(
             target=self._fetch_subscriptions, 
-            args=(skip, active_only), 
+            args=(skip, active_only, selected_subscription_id), 
             daemon=True
         ).start()
     
-    def _fetch_subscriptions(self, skip, active_only):
+    def _fetch_subscriptions(self, skip, active_only, selected_subscription_id=None):
         """Background thread to fetch subscriptions from API"""
-        subscriptions = self.api_client.get_subscriptions(
-            skip=skip, 
-            limit=self.page_size, 
-            active_only=active_only
-        )
-        
-        # Update UI in main thread
-        self.after(0, lambda: self._update_subscription_list(subscriptions))
+        try:
+            subscriptions = self.api_client.get_subscriptions(
+                skip=skip, 
+                limit=self.page_size, 
+                active_only=active_only
+            )
+            
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self._update_subscription_list(subscriptions, selected_subscription_id))
+                self.after(0, lambda: self.status_var.set(f"Loaded {len(subscriptions)} subscriptions"))
+
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_subscriptions)
+                self.auto_refresh_job.start()
+                
+        except Exception as e:
+            print(f"Error loading subscriptions: {str(e)}")
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to load subscriptions: {str(e)}"))
+            
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_subscriptions)
+                self.auto_refresh_job.start()
     
-    def _update_subscription_list(self, subscriptions):
+    def _update_subscription_list(self, subscriptions, selected_subscription_id=None):
         """Updates the subscriptions treeview with data"""
-        # Clear existing entries
+        if not self.winfo_exists() or not hasattr(self, 'subscriptions_tree') or not self.subscriptions_tree.winfo_exists():
+            return
+
         for row in self.subscriptions_tree.get_children():
             self.subscriptions_tree.delete(row)
-            
-        # Add subscriptions to treeview
+        
+        item_to_select = None
         for sub in subscriptions:
-            # Format the subscribed_at timestamp if it exists
             subscribed_at = sub.subscribed_at
             if subscribed_at:
-                # Format date for display
                 if isinstance(subscribed_at, str):
-                    # If it's a string, it's likely ISO format
                     try:
                         subscribed_at = datetime.fromisoformat(subscribed_at.replace('Z', '+00:00'))
                     except ValueError:
                         pass
-                
                 if isinstance(subscribed_at, datetime):
                     subscribed_at = subscribed_at.strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Display "Yes" or "No" for active status
             active_text = "Yes" if sub.active else "No"
-            
-            self.subscriptions_tree.insert(
+            item = self.subscriptions_tree.insert(
                 "", "end", 
                 values=(sub.id, sub.client_id, sub.topic_name, subscribed_at, active_text)
             )
+            if selected_subscription_id and sub.id == selected_subscription_id:
+                item_to_select = item
+        
+        if item_to_select and self.subscriptions_tree.exists(item_to_select):
+            self.subscriptions_tree.selection_set(item_to_select)
+            self.subscriptions_tree.focus(item_to_select)
             
-        # Update status
-        if subscriptions:
-            self.status_var.set(f"Loaded {len(subscriptions)} subscriptions")
-        else:
-            self.status_var.set("No subscriptions found")
-            
-        # Update pagination buttons
-        self.update_pagination()
+        if self.winfo_exists(): # Check before updating status and pagination
+            if subscriptions:
+                self.status_var.set(f"Loaded {len(subscriptions)} subscriptions")
+            else:
+                self.status_var.set("No subscriptions found")
+            self.update_pagination()
     
     def update_pagination(self):
         """Update pagination controls based on current page"""
-        self.page_label.config(text=f"Page {self.page + 1}")
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'page_label') and self.page_label.winfo_exists():
+            self.page_label.config(text=f"Page {self.page + 1}")
         
-        # Enable/disable prev button based on current page
-        if self.page > 0:
-            self.prev_page_btn.state(["!disabled"])
-        else:
-            self.prev_page_btn.state(["disabled"])
+        if hasattr(self, 'prev_page_btn') and self.prev_page_btn.winfo_exists():
+            if self.page > 0:
+                self.prev_page_btn.state(["!disabled"])
+            else:
+                self.prev_page_btn.state(["disabled"])
             
-        # Logic for next button could depend on if we know there are more pages
-        # For now, we'll disable it if we received fewer items than the page size
-        children_count = len(self.subscriptions_tree.get_children())
-        if children_count < self.page_size:
-            self.next_page_btn.state(["disabled"])
-        else:
-            self.next_page_btn.state(["!disabled"])
+        if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'subscriptions_tree') and self.subscriptions_tree.winfo_exists():
+            children_count = len(self.subscriptions_tree.get_children())
+            if children_count < self.page_size:
+                self.next_page_btn.state(["disabled"])
+            else:
+                self.next_page_btn.state(["!disabled"])
     
     def prev_page(self):
         """Go to previous page of subscriptions"""
@@ -307,65 +334,76 @@ class SubscriptionsView(ttk.Frame):
     
     def _fetch_subscription_details(self, subscription_id):
         """Background thread to fetch subscription details"""
-        subscription = self.api_client.get_subscription(subscription_id)
-        
-        if subscription:
-            # Update UI in main thread
-            self.after(0, lambda: self.update_subscription_details(subscription))
-        else:
-            self.after(0, lambda: self.status_var.set("Failed to load subscription details"))
+        try:
+            subscription = self.api_client.get_subscription(subscription_id)
+            if self.winfo_exists(): # Check if view still exists
+                if subscription:
+                    self.after(0, lambda: self.update_subscription_details(subscription))
+                else:
+                    self.after(0, lambda: self.status_var.set("Failed to load subscription details"))
+        except Exception as e:
+            print(f"Error fetching subscription details: {e}")
+            if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
     
     def update_subscription_details(self, subscription):
         """Update the subscription details panel with subscription data"""
+        if not self.winfo_exists():
+            return
         self.selected_subscription = subscription
-        
-        # Format the subscribed_at timestamp if it exists
         subscribed_at = subscription.subscribed_at
         if subscribed_at:
-            # Format date for display
             if isinstance(subscribed_at, str):
                 try:
                     subscribed_at = datetime.fromisoformat(subscribed_at.replace('Z', '+00:00'))
                 except ValueError:
                     pass
-            
             if isinstance(subscribed_at, datetime):
                 subscribed_at = subscribed_at.strftime("%Y-%m-%d %H:%M:%S")
         
-        # Update detail labels
-        self.detail_sub_id.config(text=str(subscription.id))
-        self.detail_client_id.config(text=subscription.client_id)
-        self.detail_topic_name.config(text=subscription.topic_name or "Unknown")
-        self.detail_topic_id.config(text=str(subscription.topic_id))
-        self.detail_subscribed_at.config(text=subscribed_at or "Unknown")
+        if hasattr(self, 'detail_sub_id') and self.detail_sub_id.winfo_exists():
+            self.detail_sub_id.config(text=str(subscription.id))
+        if hasattr(self, 'detail_client_id') and self.detail_client_id.winfo_exists():
+            self.detail_client_id.config(text=subscription.client_id)
+        if hasattr(self, 'detail_topic_name') and self.detail_topic_name.winfo_exists():
+            self.detail_topic_name.config(text=subscription.topic_name or "Unknown")
+        if hasattr(self, 'detail_topic_id') and self.detail_topic_id.winfo_exists():
+            self.detail_topic_id.config(text=str(subscription.topic_id))
+        if hasattr(self, 'detail_subscribed_at') and self.detail_subscribed_at.winfo_exists():
+            self.detail_subscribed_at.config(text=subscribed_at or "Unknown")
         
         active_status = "Active" if subscription.active else "Inactive"
-        self.detail_active.config(text=active_status)
+        if hasattr(self, 'detail_active') and self.detail_active.winfo_exists():
+            self.detail_active.config(text=active_status)
         
-        # Update toggle button text based on current status
-        if subscription.active:
-            self.toggle_status_btn.config(text="Desactivate")
-        else:
-            self.toggle_status_btn.config(text="Activate")
+        if hasattr(self, 'toggle_status_btn') and self.toggle_status_btn.winfo_exists():
+            if subscription.active:
+                self.toggle_status_btn.config(text="Deactivate")
+            else:
+                self.toggle_status_btn.config(text="Activate")
         
-        # Enable action buttons
         self.update_detail_buttons_state(True)
-        
-        self.status_var.set("Subscription details loaded")
+        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+            self.status_var.set("Subscription details loaded")
     
     def clear_subscription_details(self):
         """Clear the subscription details panel"""
-        self.detail_sub_id.config(text="")
-        self.detail_client_id.config(text="")
-        self.detail_topic_name.config(text="")
-        self.detail_topic_id.config(text="")
-        self.detail_subscribed_at.config(text="")
-        self.detail_active.config(text="")
-        
-        # Reset toggle button text
-        self.toggle_status_btn.config(text="Toggle Status")
-        
-        # Disable action buttons
+        if not self.winfo_exists():
+            return
+        if hasattr(self, 'detail_sub_id') and self.detail_sub_id.winfo_exists():
+            self.detail_sub_id.config(text="")
+        if hasattr(self, 'detail_client_id') and self.detail_client_id.winfo_exists():
+            self.detail_client_id.config(text="")
+        if hasattr(self, 'detail_topic_name') and self.detail_topic_name.winfo_exists():
+            self.detail_topic_name.config(text="")
+        if hasattr(self, 'detail_topic_id') and self.detail_topic_id.winfo_exists():
+            self.detail_topic_id.config(text="")
+        if hasattr(self, 'detail_subscribed_at') and self.detail_subscribed_at.winfo_exists():
+            self.detail_subscribed_at.config(text="")
+        if hasattr(self, 'detail_active') and self.detail_active.winfo_exists():
+            self.detail_active.config(text="")
+        if hasattr(self, 'toggle_status_btn') and self.toggle_status_btn.winfo_exists():
+            self.toggle_status_btn.config(text="Toggle Status")
         self.update_detail_buttons_state(False)
     
     def update_detail_buttons_state(self, enabled):
@@ -497,3 +535,21 @@ class SubscriptionsView(ttk.Frame):
                 "Failed to delete subscription"
             ))
             self.after(0, lambda: self.status_var.set("Delete failed"))
+
+    def start_auto_refresh(self):
+        """Start the auto-refresh job"""
+        if not self.is_refreshing:
+            self.is_refreshing = True
+            self.auto_refresh_job = threading.Timer(1.0, self.load_subscriptions)
+            self.auto_refresh_job.start()
+    
+    def stop_auto_refresh(self):
+        """Stop the auto-refresh job"""
+        self.is_refreshing = False
+        if self.auto_refresh_job:
+            self.auto_refresh_job.cancel()
+            self.auto_refresh_job = None
+    
+    def on_destroy(self):
+        """Called when the view is being destroyed"""
+        self.stop_auto_refresh() 

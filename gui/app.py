@@ -65,10 +65,28 @@ class TinyMQMonitorApp:
             foreground="#ffffff"
         )
         
+        # Configure red delete button style properly
         style.configure(
             "Danger.TButton",
-            background="#d9534f",
-            foreground="#ffffff"
+            background="#dc3545",
+            foreground="white",
+            borderwidth=1,
+            focuscolor="none"
+        )
+        
+        # Map states for the danger button
+        style.map(
+            "Danger.TButton",
+            background=[
+                ('active', '#c82333'),
+                ('pressed', '#bd2130'),
+                ('disabled', '#6c757d')
+            ],
+            foreground=[
+                ('active', 'white'),
+                ('pressed', 'white'),
+                ('disabled', 'white')
+            ]
         )
         
         # Add more custom styles as needed

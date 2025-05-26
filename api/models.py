@@ -34,12 +34,13 @@ class Client(Base):
     last_ip = Column(String)
     last_port = Column(Integer)
     connection_count = Column(Integer, default=1)
+    active = Column(Boolean, default=False)
     
     # Relationships
-    topics = relationship("Topic", back_populates="owner")
-    subscriptions = relationship("Subscription", back_populates="client")
-    messages = relationship("MessageLog", back_populates="publisher")
-    connection_events = relationship("ConnectionEvent", back_populates="client")
+    topics = relationship("Topic", back_populates="owner", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="client", cascade="all, delete-orphan")
+    messages = relationship("MessageLog", back_populates="publisher", cascade="all, delete-orphan")
+    connection_events = relationship("ConnectionEvent", back_populates="client", cascade="all, delete-orphan")
 
 class Topic(Base):
     __tablename__ = "topics"
@@ -75,6 +76,7 @@ class MessageLog(Base):
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
     payload_size = Column(Integer, nullable=False)
     payload_preview = Column(String, nullable=True)
+    payload_data = Column(JSONB, nullable=True)
     published_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relationships

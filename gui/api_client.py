@@ -133,6 +133,24 @@ class ApiClient:
             print(f"Error deleting client: {str(e)}")
             return False
     
+    def update_client_status(self, client_id: str, active: bool) -> bool:
+        """Update a client's active status"""
+        if not self.ensure_authenticated():
+            return False
+        
+        try:
+            response = requests.patch(
+                f"{self.api_config.base_url}/clients/{client_id}",
+                headers=self._get_headers(),
+                json={"active": active}
+            )
+            
+            return response.status_code == 200
+                
+        except Exception as e:
+            print(f"Error updating client status: {str(e)}")
+            return False
+    
     # Topic endpoints
     def get_topics(self, skip: int = 0, limit: int = 100) -> List[Topic]:
         """Get a list of topics"""

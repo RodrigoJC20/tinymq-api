@@ -25,11 +25,18 @@ class ClientsView(ttk.Frame):
         # Selected client for details
         self.selected_client = None
         
+        # Auto-refresh variables
+        self.auto_refresh_job = None
+        self.is_refreshing = False
+        
         # Setup UI components
         self.setup_ui()
         
         # Load initial data
         self.load_clients()
+        
+        # Start auto-refresh
+        self.start_auto_refresh()
     
     def setup_ui(self):
         # Configure the grid
@@ -66,19 +73,21 @@ class ClientsView(ttk.Frame):
         # Clients table with scrollbar
         self.clients_tree = ttk.Treeview(
             list_frame,
-            columns=("id", "client_id", "ip", "port", "last_connected", "count"),
+            columns=("id", "active", "client_id", "ip", "port", "last_connected", "count"),
             show="headings",
             selectmode="browse"
         )
         
         self.clients_tree.heading("id", text="ID")
+        self.clients_tree.heading("active", text="Active")
         self.clients_tree.heading("client_id", text="Client ID")
         self.clients_tree.heading("ip", text="Last IP")
         self.clients_tree.heading("port", text="Last Port")
         self.clients_tree.heading("last_connected", text="Last Connected")
         self.clients_tree.heading("count", text="Connection Count")
         
-        self.clients_tree.column("id", width=50)
+        self.clients_tree.column("id", width=50, anchor="center")
+        self.clients_tree.column("active", width=50, anchor="center")
         self.clients_tree.column("client_id", width=200)
         self.clients_tree.column("ip", width=120)
         self.clients_tree.column("port", width=80)
@@ -87,6 +96,10 @@ class ClientsView(ttk.Frame):
         
         self.clients_tree.grid(row=0, column=0, sticky="nsew")
         self.clients_tree.bind("<<TreeviewSelect>>", self.on_client_selected)
+        
+        # Configure tags for connection status (not just active status)
+        self.clients_tree.tag_configure("connected", foreground="black")
+        self.clients_tree.tag_configure("disconnected", foreground="gray")
         
         # Add scrollbar to treeview
         tree_scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.clients_tree.yview)
@@ -132,9 +145,13 @@ class ClientsView(ttk.Frame):
         self.detail_count = ttk.Label(details_frame, text="")
         self.detail_count.grid(row=4, column=1, sticky="w", padx=5, pady=2)
         
+        ttk.Label(details_frame, text="Active:").grid(row=5, column=0, sticky="e", padx=5, pady=2)
+        self.detail_active = ttk.Label(details_frame, text="")
+        self.detail_active.grid(row=5, column=1, sticky="w", padx=5, pady=2)
+        
         # Action buttons
         action_frame = ttk.Frame(details_frame)
-        action_frame.grid(row=5, column=0, columnspan=2, pady=10)
+        action_frame.grid(row=6, column=0, columnspan=2, pady=10)
         
         view_topics_btn = ttk.Button(
             action_frame, 
@@ -164,13 +181,19 @@ class ClientsView(ttk.Frame):
         )
         view_events_btn.grid(row=0, column=3, padx=5)
         
-        # delete_btn = ttk.Button(
-        #     action_frame, 
-        #     text="Delete Client", 
-        #     command=self.delete_client,
-        #     style="Danger.TButton"  # This would need a custom style definition
-        # )
-        # delete_btn.grid(row=0, column=4, padx=5)
+        self.disconnect_btn = ttk.Button(
+            action_frame, 
+            text="⚡ Disconnect", 
+            command=self.disconnect_client
+        )
+        self.disconnect_btn.grid(row=0, column=4, padx=5)
+        
+        delete_btn = ttk.Button(
+            action_frame, 
+            text="Remove Client", 
+            command=self.delete_client
+        )
+        delete_btn.grid(row=0, column=5, padx=5)
         
         # Status bar
         status_frame = ttk.Frame(self)
@@ -182,43 +205,69 @@ class ClientsView(ttk.Frame):
         
         # Initially disable client actions
         self.update_detail_buttons_state(False)
+        
+        # Also disable disconnect button initially
+        if hasattr(self, 'disconnect_btn'):
+            self.disconnect_btn.state(["disabled"])
     
     def load_clients(self):
         """Loads client data from API"""
+        if not self.winfo_exists():
+            return
+            
         self.status_var.set("Loading clients...")
         self.update_idletasks()
         
-        # Clear selected client
-        self.selected_client = None
-        self.clear_client_details()
+        # Store currently selected client ID to restore after refresh
+        selected_client_id = None
+        if self.selected_client:
+            selected_client_id = self.selected_client.client_id
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
         
         # Start loading in background thread
-        threading.Thread(target=self._fetch_clients, args=(skip,), daemon=True).start()
+        threading.Thread(target=self._fetch_clients, args=(skip, selected_client_id), daemon=True).start()
     
-    def _fetch_clients(self, skip):
+    def _fetch_clients(self, skip, selected_client_id=None):
         """Background thread to fetch clients from API"""
         try:
             clients = self.api_client.get_clients(skip=skip, limit=self.page_size)
             
-            # Update UI on main thread
-            self.after(0, lambda: self._update_client_list(clients))
-            self.after(0, lambda: self.status_var.set(f"Loaded {len(clients)} clients"))
+            # Update UI on main thread only if widget still exists
+            if self.winfo_exists():
+                self.after(0, lambda: self._update_client_list(clients, selected_client_id))
+                self.after(0, lambda: self.status_var.set(f"Loaded {len(clients)} clients"))
+            
+            # Schedule next auto-refresh if enabled
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_clients)
+                self.auto_refresh_job.start()
             
         except Exception as e:
             print(f"Error loading clients: {str(e)}")
-            self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
-            self.after(0, lambda: messagebox.showerror("Error", f"Failed to load clients: {str(e)}"))
+            if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to load clients: {str(e)}"))
+            
+            # Still schedule next refresh even on error
+            if self.is_refreshing and self.winfo_exists():
+                self.auto_refresh_job = threading.Timer(1.0, self.load_clients)
+                self.auto_refresh_job.start()
     
-    def _update_client_list(self, clients):
+    def _update_client_list(self, clients, selected_client_id=None):
         """Updates the client list treeview with fetched data"""
+        # Ensure the treeview widget still exists before trying to update it
+        if not self.winfo_exists() or not hasattr(self, 'clients_tree') or not self.clients_tree.winfo_exists():
+            return
+
         # Clear existing items
         for item in self.clients_tree.get_children():
             self.clients_tree.delete(item)
         
-        # Add clients to treeview
+        # Add clients to treeview and track the item to reselect
+        item_to_select = None
+        
         for client in clients:
             # Check if last_connected is a string and convert to datetime if needed
             if isinstance(client.last_connected, str) and client.last_connected:
@@ -235,33 +284,59 @@ class ClientsView(ttk.Frame):
                 # It's None or some other type
                 last_connected = "N/A"
             
-            self.clients_tree.insert(
+            # Create colored dot display for active status
+            if client.active:
+                active_display = "🟢"  # Green circle emoji for active
+            else:
+                active_display = "🔴"  # Red circle emoji for inactive
+            
+            # Determine row color based on connection status
+            tag = "connected" if client.active else "disconnected"
+
+            item = self.clients_tree.insert(
                 "", "end", 
                 values=(
-                    client.id, 
+                    client.id,
+                    active_display,
                     client.client_id, 
                     client.last_ip or "N/A", 
                     client.last_port or "N/A",
                     last_connected,
                     client.connection_count
-                )
+                ),
+                tags=(tag,)
             )
+            
+            # Check if this is the previously selected client
+            if selected_client_id and client.client_id == selected_client_id:
+                item_to_select = item
         
-        # Update pagination
-        self.update_pagination()
+        # Restore selection if we found the previously selected client
+        if item_to_select and self.clients_tree.exists(item_to_select): # Check if item still exists
+            self.clients_tree.selection_set(item_to_select)
+            self.clients_tree.focus(item_to_select)
+        
+        # Update pagination only if widgets exist
+        if self.winfo_exists():
+            self.update_pagination()
     
     def update_pagination(self):
         """Updates pagination controls"""
+        if not self.winfo_exists():
+            return
         # Set page label
-        self.page_label.config(text=f"Page {self.page + 1}")
+        if hasattr(self, 'page_label') and self.page_label.winfo_exists():
+            self.page_label.config(text=f"Page {self.page + 1}")
         
         # Enable/disable pagination buttons based on page number
-        self.prev_page_btn.state(["disabled"] if self.page == 0 else ["!disabled"])
+        if hasattr(self, 'prev_page_btn') and self.prev_page_btn.winfo_exists():
+            self.prev_page_btn.state(["disabled"] if self.page == 0 else ["!disabled"])
         
         # Next button logic would depend on knowing total count, 
         # or checking if we received a full page of results
-        client_count = len(self.clients_tree.get_children())
-        self.next_page_btn.state(["disabled"] if client_count < self.page_size else ["!disabled"])
+        if hasattr(self, 'next_page_btn') and self.next_page_btn.winfo_exists() and hasattr(self, 'clients_tree') and self.clients_tree.winfo_exists():
+            client_count = len(self.clients_tree.get_children())
+            self.next_page_btn.state(["disabled"] if client_count < self.page_size else ["!disabled"])
     
     def prev_page(self):
         """Go to previous page of clients"""
@@ -287,8 +362,8 @@ class ClientsView(ttk.Frame):
         if not values:
             return
         
-        # Get client ID from selected row
-        client_id = values[1]
+        # Get client ID from selected row (index 2 due to "Active" column)
+        client_id = values[2]
         
         # Start loading client details in background
         threading.Thread(target=self._fetch_client_details, args=(client_id,), daemon=True).start()
@@ -298,25 +373,33 @@ class ClientsView(ttk.Frame):
         try:
             client = self.api_client.get_client(client_id)
             
-            if client:
-                # Store the selected client
-                self.selected_client = client
-                
-                # Update UI on main thread
-                self.after(0, lambda: self.update_client_details(client))
-            else:
-                self.after(0, lambda: self.status_var.set(f"Client not found: {client_id}"))
-                self.after(0, lambda: self.clear_client_details())
+            if self.winfo_exists(): # Check if view still exists
+                if client:
+                    # Store the selected client
+                    self.selected_client = client
+                    
+                    # Update UI on main thread
+                    self.after(0, lambda: self.update_client_details(client))
+                else:
+                    self.after(0, lambda: self.status_var.set(f"Client not found: {client_id}"))
+                    self.after(0, lambda: self.clear_client_details())
                 
         except Exception as e:
             print(f"Error loading client details: {str(e)}")
-            self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
     
     def update_client_details(self, client):
         """Updates the client details panel with selected client info"""
-        self.detail_client_id.config(text=client.client_id)
-        self.detail_ip.config(text=client.last_ip or "N/A")
-        self.detail_port.config(text=str(client.last_port) if client.last_port else "N/A")
+        if not self.winfo_exists(): # Check if view still exists
+            return
+        # Further checks for individual labels
+        if hasattr(self, 'detail_client_id') and self.detail_client_id.winfo_exists():
+            self.detail_client_id.config(text=client.client_id)
+        if hasattr(self, 'detail_ip') and self.detail_ip.winfo_exists():
+            self.detail_ip.config(text=client.last_ip or "N/A")
+        if hasattr(self, 'detail_port') and self.detail_port.winfo_exists():
+            self.detail_port.config(text=str(client.last_port) if client.last_port else "N/A")
         
         # Handle last_connected consistently with _update_client_list
         if isinstance(client.last_connected, str) and client.last_connected:
@@ -324,31 +407,52 @@ class ClientsView(ttk.Frame):
                 # Try to parse the string to datetime
                 last_connected = parse(client.last_connected).strftime("%Y-%m-%d %H:%M:%S")
             except ValueError:
-                # If parsing fails, just use the string as is
                 last_connected = client.last_connected
         elif hasattr(client.last_connected, 'strftime'):
-            # It's already a datetime object
             last_connected = client.last_connected.strftime("%Y-%m-%d %H:%M:%S")
         else:
-            # It's None or some other type
             last_connected = "N/A"
-            
-        self.detail_last_connected.config(text=last_connected)
-        self.detail_count.config(text=str(client.connection_count))
         
-        # Enable detail buttons
+        if hasattr(self, 'detail_last_connected') and self.detail_last_connected.winfo_exists():
+            self.detail_last_connected.config(text=last_connected)
+        if hasattr(self, 'detail_count') and self.detail_count.winfo_exists():
+            self.detail_count.config(text=str(client.connection_count))
+        
+        active_text = "🟢 Yes" if client.active else "🔴 No"
+        if hasattr(self, 'detail_active') and self.detail_active.winfo_exists():
+            self.detail_active.config(text=active_text, foreground="black")
+        
         self.update_detail_buttons_state(True)
+        
+        # Update disconnect button state - only enable for active clients
+        if hasattr(self, 'disconnect_btn') and self.disconnect_btn.winfo_exists():
+            if client.active:
+                self.disconnect_btn.state(["!disabled"])
+            else:
+                self.disconnect_btn.state(["disabled"])
     
     def clear_client_details(self):
         """Clears the client details panel"""
-        self.detail_client_id.config(text="")
-        self.detail_ip.config(text="")
-        self.detail_port.config(text="")
-        self.detail_last_connected.config(text="")
-        self.detail_count.config(text="")
+        if not self.winfo_exists(): # Check if view still exists
+            return
+        if hasattr(self, 'detail_client_id') and self.detail_client_id.winfo_exists():
+            self.detail_client_id.config(text="")
+        if hasattr(self, 'detail_ip') and self.detail_ip.winfo_exists():
+            self.detail_ip.config(text="")
+        if hasattr(self, 'detail_port') and self.detail_port.winfo_exists():
+            self.detail_port.config(text="")
+        if hasattr(self, 'detail_last_connected') and self.detail_last_connected.winfo_exists():
+            self.detail_last_connected.config(text="")
+        if hasattr(self, 'detail_count') and self.detail_count.winfo_exists():
+            self.detail_count.config(text="")
+        if hasattr(self, 'detail_active') and self.detail_active.winfo_exists():
+            self.detail_active.config(text="", foreground="black")
         
-        # Disable detail buttons
         self.update_detail_buttons_state(False)
+        
+        # Also disable disconnect button when no client is selected
+        if hasattr(self, 'disconnect_btn') and self.disconnect_btn.winfo_exists():
+            self.disconnect_btn.state(["disabled"])
     
     def update_detail_buttons_state(self, enabled):
         """Updates state of detail action buttons"""
@@ -392,19 +496,29 @@ class ClientsView(ttk.Frame):
     def _delete_client_thread(self):
         """Background thread for client deletion"""
         try:
-            success = self.api_client.delete_client(self.selected_client.client_id)
+            # Ensure we have a client selected to delete
+            client_to_delete_id = self.selected_client.client_id
+            success = self.api_client.delete_client(client_to_delete_id)
             
-            if success:
-                self.after(0, lambda: self.status_var.set(f"Client '{self.selected_client.client_id}' deleted successfully"))
-                self.after(0, self.load_clients)
-            else:
-                self.after(0, lambda: self.status_var.set(f"Failed to delete client"))
-                self.after(0, lambda: messagebox.showerror("Error", "Failed to delete client."))
+            if self.winfo_exists(): # Check if view still exists
+                if success:
+                    self.after(0, lambda: self.status_var.set(f"Client '{client_to_delete_id}' deleted successfully"))
+                    # Clear selection and details panel, then reload
+                    self.selected_client = None
+                    self.after(0, self.clear_client_details) 
+                    self.after(0, self.load_clients)
+                else:
+                    self.after(0, lambda: self.status_var.set(f"Failed to delete client"))
+                    self.after(0, lambda: messagebox.showerror("Error", "Failed to delete client."))
                 
+        except AttributeError: # Handle case where self.selected_client is None
+             if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set("No client selected to delete"))
         except Exception as e:
             print(f"Error deleting client: {str(e)}")
-            self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
-            self.after(0, lambda: messagebox.showerror("Error", f"Failed to delete client: {str(e)}"))
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to delete client: {str(e)}"))
     
     def view_client_topics(self):
         """Navigate to topics view filtered by client"""
@@ -428,4 +542,62 @@ class ClientsView(ttk.Frame):
         """Navigate to events view filtered by client"""
         if not self.selected_client:
             return
-        self.show_view_callback("client_events", client_id=self.selected_client.client_id)
+        
+        # This would require passing filter info to events view
+        messagebox.showinfo("Not Implemented", "View events by client feature coming soon!")
+
+    def start_auto_refresh(self):
+        """Starts auto-refresh job"""
+        if not self.is_refreshing:
+            self.is_refreshing = True
+            self.auto_refresh_job = threading.Timer(1.0, self.load_clients)
+            self.auto_refresh_job.start()
+
+    def stop_auto_refresh(self):
+        """Stops auto-refresh job"""
+        self.is_refreshing = False
+        if self.auto_refresh_job:
+            self.auto_refresh_job.cancel()
+            self.auto_refresh_job = None
+
+    def on_destroy(self):
+        """Called when the view is being destroyed"""
+        self.stop_auto_refresh()
+
+    def disconnect_client(self):
+        """Disconnects the selected client"""
+        if not self.selected_client:
+            return
+        
+        if messagebox.askyesno(
+            "Disconnect Client", 
+            f"Are you sure you want to disconnect client '{self.selected_client.client_id}'?"
+        ):
+            threading.Thread(target=self._disconnect_client_thread, daemon=True).start()
+    
+    def _disconnect_client_thread(self):
+        """Background thread for client disconnection"""
+        try:
+            # Ensure we have a client selected to disconnect
+            client_to_disconnect_id = self.selected_client.client_id
+            success = self.api_client.update_client_status(client_to_disconnect_id, False)
+            
+            if self.winfo_exists(): # Check if view still exists
+                if success:
+                    self.after(0, lambda: self.status_var.set(f"Client '{client_to_disconnect_id}' disconnected successfully"))
+                    # Clear selection and details panel, then reload
+                    self.selected_client = None
+                    self.after(0, self.clear_client_details) 
+                    self.after(0, self.load_clients)
+                else:
+                    self.after(0, lambda: self.status_var.set(f"Failed to disconnect client"))
+                    self.after(0, lambda: messagebox.showerror("Error", "Failed to disconnect client."))
+                
+        except AttributeError: # Handle case where self.selected_client is None
+             if self.winfo_exists():
+                self.after(0, lambda: self.status_var.set("No client selected to disconnect"))
+        except Exception as e:
+            print(f"Error disconnecting client: {str(e)}")
+            if self.winfo_exists(): # Check if view still exists
+                self.after(0, lambda: self.status_var.set(f"Error: {str(e)}"))
+                self.after(0, lambda: messagebox.showerror("Error", f"Failed to disconnect client: {str(e)}")) 
