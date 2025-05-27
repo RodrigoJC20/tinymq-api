@@ -596,17 +596,29 @@ class ApiClient:
     
     def get_publisher_by_message(self, message_id: int) -> Optional[Client]:
         """Fetch the publisher of a message by message ID."""
-        data = self._get(f"/messages/{message_id}/client")
-        if data:
-            return Client(**data)
-        return None
+        try:
+            data = self._get(f"/messages/{message_id}/client")
+            if data:
+                return Client(**data)
+            else:
+                print(f"Publisher not found for message ID {message_id}")
+                return None
+        except Exception as e:
+            print(f"Error fetching publisher for message ID {message_id}: {str(e)}")
+            return None
 
     def get_topic_by_message(self, message_id: int) -> Optional[Topic]:
         """Fetch the topic of a message by message ID."""
-        data = self._get(f"/messages/{message_id}/topic")
-        if data:
-            return Topic(**data)
-        return None
+        try:
+            data = self._get(f"/messages/{message_id}/topic")
+            if data:
+                return Topic(**data)
+            else:
+                print(f"Topic not found for message ID {message_id}")
+                return None
+        except Exception as e:
+            print(f"Error fetching topic for message ID {message_id}: {str(e)}")
+            return None
     
     def get_client_by_event(self, event_id: int) -> Optional[Client]:
         """Fetch the client of a connection event by event ID."""

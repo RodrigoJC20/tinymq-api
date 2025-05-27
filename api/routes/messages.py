@@ -127,7 +127,7 @@ def get_message(
         "topic_id": message.topic_id,
         "payload_size": message.payload_size,
         "payload_preview": message.payload_preview,
-        "payload_data": None,  # Set to None since it doesn't exist in DB
+        # "payload_data": None,  # Set to None since it doesn't exist in DB
         "published_at": message.published_at,
         "topic_name": message.topic_name
     }

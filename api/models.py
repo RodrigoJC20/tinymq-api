@@ -76,7 +76,7 @@ class MessageLog(Base):
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
     payload_size = Column(Integer, nullable=False)
     payload_preview = Column(String, nullable=True)
-    payload_data = Column(JSONB, nullable=True)
+    # payload_data = Column(JSONB, nullable=True)
     published_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relationships

@@ -383,7 +383,7 @@ class SubscriptionsView(ttk.Frame):
                 self.toggle_status_btn.config(text="Activate")
         
         self.update_detail_buttons_state(True)
-        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+        if hasattr(self, 'status_var'):
             self.status_var.set("Subscription details loaded")
     
     def clear_subscription_details(self):

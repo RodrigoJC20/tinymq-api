@@ -195,14 +195,14 @@ class EventsView(ttk.Frame):
         """Loads connection event data from API"""
         if not self.winfo_exists():
             return
-            
+        
         self.status_var.set("Loading connection events...")
         self.update_idletasks()
         
-        # Clear selected event only if this is not an auto-refresh
-        if not hasattr(self, '_auto_refresh_in_progress'):
-            self.selected_event = None
-            self.clear_event_details()
+        # Store currently selected event ID to restore after refresh
+        selected_event_id = None
+        if self.selected_event:
+            selected_event_id = self.selected_event.id
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
@@ -213,11 +213,11 @@ class EventsView(ttk.Frame):
         # Start loading in background thread
         threading.Thread(
             target=self._fetch_events, 
-            args=(skip, event_type), 
+            args=(skip, event_type, selected_event_id), 
             daemon=True
         ).start()
     
-    def _fetch_events(self, skip, event_type):
+    def _fetch_events(self, skip, event_type, selected_event_id):
         """Background thread to fetch events from API"""
         try:
             events = self.api_client.get_events(
@@ -228,7 +228,7 @@ class EventsView(ttk.Frame):
             
             # Update UI in main thread only if widget still exists
             if self.winfo_exists():
-                self.after(0, lambda: self._update_event_list(events))
+                self.after(0, lambda: self._update_event_list(events, selected_event_id))
                 self.after(0, lambda: self.status_var.set(f"Loaded {len(events)} events"))
             
             # Schedule next auto-refresh if enabled
@@ -247,7 +247,7 @@ class EventsView(ttk.Frame):
                 self.auto_refresh_job = threading.Timer(1.0, self.load_events)
                 self.auto_refresh_job.start()
     
-    def _update_event_list(self, events):
+    def _update_event_list(self, events, selected_event_id=None):
         """Updates the events treeview with data"""
         if not self.winfo_exists() or not hasattr(self, 'events_tree') or not self.events_tree.winfo_exists():
             return
@@ -255,8 +255,8 @@ class EventsView(ttk.Frame):
         # Clear existing entries
         for row in self.events_tree.get_children():
             self.events_tree.delete(row)
-            
-        # Add events to treeview
+    
+        item_to_select = None
         for event in events:
             # Format the timestamp if it exists
             timestamp = event.timestamp
@@ -269,8 +269,8 @@ class EventsView(ttk.Frame):
                 
                 if isinstance(timestamp, datetime):
                     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            
-            self.events_tree.insert(
+        
+            item = self.events_tree.insert(
                 "", "end", 
                 values=(
                     event.id, 
@@ -281,7 +281,13 @@ class EventsView(ttk.Frame):
                     timestamp
                 )
             )
-            
+            if selected_event_id and event.id == selected_event_id:
+                item_to_select = item
+    
+        if item_to_select and self.events_tree.exists(item_to_select):
+            self.events_tree.selection_set(item_to_select)
+            self.events_tree.focus(item_to_select)
+    
         if self.winfo_exists(): # Check before updating status and pagination
             if events:
                 self.status_var.set(f"Loaded {len(events)} connection events")
@@ -379,7 +385,7 @@ class EventsView(ttk.Frame):
             self.detail_timestamp.config(text=timestamp or "Unknown")
         
         self.update_detail_buttons_state(True)
-        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+        if hasattr(self, 'status_var'):
             self.status_var.set("Event details loaded")
     
     def clear_event_details(self):
@@ -451,16 +457,17 @@ class EventsView(ttk.Frame):
         """Start auto-refresh job"""
         if not self.is_refreshing:
             self.is_refreshing = True
-            self.auto_refresh_job = threading.Timer(1.0, self.load_events)
-            self.auto_refresh_job.start()
+            self._schedule_auto_refresh()
+
+    def _schedule_auto_refresh(self):
+        """Schedule the next auto-refresh"""
+        if self.is_refreshing and self.winfo_exists():
+            self.after(1000, self.load_events)  # Schedule load_events to run every 1 second
 
     def stop_auto_refresh(self):
         """Stop auto-refresh job"""
         self.is_refreshing = False
-        if self.auto_refresh_job:
-            self.auto_refresh_job.cancel()
-            self.auto_refresh_job = None
-
+    
     def on_destroy(self):
         """Called when the view is being destroyed"""
-        self.stop_auto_refresh() 
+        self.stop_auto_refresh()

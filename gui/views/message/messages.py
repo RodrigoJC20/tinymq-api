@@ -190,28 +190,28 @@ class MessagesView(ttk.Frame):
         """Loads message data from API"""
         if not self.winfo_exists():
             return
-            
+        
         self.status_var.set("Loading messages...")
         self.update_idletasks()
         
-        # Clear selected message only if this is not an auto-refresh
-        if not hasattr(self, '_auto_refresh_in_progress'):
-            self.selected_message = None
-            self.clear_message_details()
+        # Store currently selected message ID to restore after refresh
+        selected_message_id = None
+        if self.selected_message:
+            selected_message_id = self.selected_message.id
         
         # Calculate skip based on page and page size
         skip = self.page * self.page_size
         
         # Start loading in background thread
-        threading.Thread(target=self._fetch_messages, args=(skip,), daemon=True).start()
+        threading.Thread(target=self._fetch_messages, args=(skip, selected_message_id), daemon=True).start()
     
-    def _fetch_messages(self, skip):
+    def _fetch_messages(self, skip, selected_message_id):
         """Background thread to fetch messages from API"""
         try:
             messages = self.api_client.get_messages(skip=skip, limit=self.page_size)
             
             if self.winfo_exists(): # Check if view still exists
-                self.after(0, lambda: self._update_message_list(messages))
+                self.after(0, lambda: self._update_message_list(messages, selected_message_id))
                 self.after(0, lambda: self.status_var.set(f"Loaded {len(messages)} messages"))
             
             if self.is_refreshing and self.winfo_exists():
@@ -228,13 +228,15 @@ class MessagesView(ttk.Frame):
                 self.auto_refresh_job = threading.Timer(1.0, self.load_messages)
                 self.auto_refresh_job.start()
     
-    def _update_message_list(self, messages):
+    def _update_message_list(self, messages, selected_message_id=None):
         """Updates the messages treeview with data"""
         if not self.winfo_exists() or not hasattr(self, 'messages_tree') or not self.messages_tree.winfo_exists():
             return
         try:
             for row in self.messages_tree.get_children():
                 self.messages_tree.delete(row)
+        
+            item_to_select = None
             for msg in messages:
                 published_at = msg.published_at
                 if published_at:
@@ -246,12 +248,19 @@ class MessagesView(ttk.Frame):
                     if isinstance(published_at, datetime):
                         published_at = published_at.strftime("%Y-%m-%d %H:%M:%S")
                 topic_name = getattr(msg, 'topic_name', str(msg.topic_id))
-                self.messages_tree.insert(
+                item = self.messages_tree.insert(
                     "", "end", 
                     values=(msg.id, msg.publisher_client_id, topic_name, published_at, msg.payload_size)
                 )
+                if selected_message_id and msg.id == selected_message_id:
+                    item_to_select = item
+        
+            if item_to_select and self.messages_tree.exists(item_to_select):
+                self.messages_tree.selection_set(item_to_select)
+                self.messages_tree.focus(item_to_select)
+        
             if self.winfo_exists(): # Check before updating status and pagination
-                if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+                if hasattr(self, 'status_var'):
                     if messages:
                         self.status_var.set(f"Loaded {len(messages)} messages")
                     else:
@@ -363,7 +372,7 @@ class MessagesView(ttk.Frame):
             self.payload_text.config(state="disabled")
         
         self.update_detail_buttons_state(True)
-        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+        if hasattr(self, 'status_var'):
             self.status_var.set("Message details loaded")
     
     def clear_message_details(self):
@@ -419,34 +428,36 @@ class MessagesView(ttk.Frame):
     def view_publisher(self):
         """Navigate to the client details view for this message's publisher"""
         if self.selected_message:
-            # This would normally transition to the client view
-            # For now, just show a message
-            messagebox.showinfo("View Publisher", 
-                              f"View client '{self.selected_message.publisher_client_id}'\n"
-                              f"This navigation feature is not yet implemented.")
-    
+            publisher = self.api_client.get_publisher_by_message(self.selected_message.id)
+            if publisher:
+                self.show_view_callback("message_publisher", message_id=self.selected_message.id)
+            else:
+                messagebox.showerror("Error", "Publisher not found for this message.")
+
     def view_topic(self):
         """Navigate to the topic details view for this message's topic"""
         if self.selected_message:
-            # This would normally transition to the topic view
-            # For now, just show a message
-            topic_name = getattr(self.selected_message, 'topic_name', f"ID: {self.selected_message.topic_id}")
-            messagebox.showinfo("View Topic", 
-                              f"View topic '{topic_name}'\n"
-                              f"This navigation feature is not yet implemented.")
+            topic = self.api_client.get_topic_by_message(self.selected_message.id)
+            if topic:
+                self.show_view_callback("message_topic", message_id=self.selected_message.id)
+            else:
+                messagebox.showerror("Error", "Topic not found for this message.")
 
     def start_auto_refresh(self):
-        """Start auto-refresh"""
-        self.is_refreshing = True
-        self.load_messages()
+        """Start auto-refresh job"""
+        if not self.is_refreshing:
+            self.is_refreshing = True
+            self._schedule_auto_refresh()
+
+    def _schedule_auto_refresh(self):
+        """Schedule the next auto-refresh"""
+        if self.is_refreshing and self.winfo_exists():
+            self.after(1000, self.load_messages)  # Schedule load_messages to run every 1 second
 
     def stop_auto_refresh(self):
-        """Stop auto-refresh"""
+        """Stop auto-refresh job"""
         self.is_refreshing = False
-        if self.auto_refresh_job:
-            self.auto_refresh_job.cancel()
-        self.auto_refresh_job = None
     
     def on_destroy(self):
         """Called when the view is being destroyed"""
-        self.stop_auto_refresh() 
+        self.stop_auto_refresh()

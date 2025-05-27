@@ -16,23 +16,49 @@ tinymq-api/
 │   ├── auth.py        # Authentication functions
 │   ├── routes/        # API endpoints
 │   │   ├── __init__.py
+│   │   ├── auth.py
 │   │   ├── clients.py
 │   │   ├── topics.py
 │   │   ├── messages.py
+│   │   ├── subscriptions.py
 │   │   └── events.py
 │   └── requirements.txt # API dependencies
 ├── gui/               # Tkinter GUI for remote machine
+│   ├── api_client.py  # API client for communication with the API
 │   ├── app.py         # Main GUI application
 │   ├── views/         # Different GUI screens
+│   │   ├── client/    # Client-related views
+│   │   │   ├── client_events.py
+│   │   │   ├── client_messages.py
+│   │   │   ├── client_subscriptions.py
+│   │   │   ├── client_topics.py
+│   │   │   └── clients.py
+│   │   ├── event/     # Event-related views
+│   │   │   ├── event_all_client_events.py
+│   │   │   ├── event_client.py
+│   │   │   └── events.py
+│   │   ├── message/     # Messages-related views
+│   │   │   ├── message_publish.py
+│   │   │   ├── message_topic.py
+│   │   │   └── messages.py
+│   │   ├── subscription/ # Subscription-related views
+│   │   │   ├── subscription_client.py
+│   │   │   ├── subscription_topic.py
+│   │   │   └── subscriptions.py
+│   │   ├── topic/     # Topic-related views
+│   │   │   ├── topic_client.py
+│   │   │   ├── topic_messages.py
+│   │   │   ├── topic_subscriptions.py
+│   │   │   └── topics.py
 │   │   ├── __init__.py
-│   │   ├── login.py
 │   │   ├── dashboard.py
-│   │   ├── clients.py
-│   │   ├── topics.py
-│   │   └── logs.py
+│   │   ├── login.py
+│   │   └── settings.py
 │   └── requirements.txt # GUI dependencies
 ├── common/            # Shared code
 │   └── models.py      # Shared data models
+├── start_api.py        # Script to start the API
+├── start_gui.py        # Script to start the GUI
 └── README.md          # This file
 ```
 
@@ -52,8 +78,8 @@ tinymq-api/
 
 3. Run the API:
    ```
-   cd api
-   python app.py
+   cd tinymq-api
+   python start_api.py
    ```
 
 ### GUI (Remote machine)
@@ -64,10 +90,16 @@ tinymq-api/
    pip install -r requirements.txt
    ```
 
-2. Run the GUI:
+2. Install the `Noto Color Emoji` font (required for emoji support in the GUI):
+   - On Debian/Ubuntu-based systems:
+     ```
+     sudo apt install fonts-noto-color-emoji
+     ```
+
+3. Run the GUI:
    ```
-   cd gui
-   python app.py
+   cd tinymq-api
+   python start_gui.py
    ```
    
 3. Connect to the API by entering the Raspberry Pi's hostname/IP and the API port

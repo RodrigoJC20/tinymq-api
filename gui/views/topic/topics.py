@@ -348,7 +348,7 @@ class TopicsView(ttk.Frame):
             self.detail_subscription_count.config(text=str(subscription_count))
         
         self.update_detail_buttons_state(True)
-        if hasattr(self, 'status_var') and self.status_var.winfo_exists():
+        if hasattr(self, 'status_var'):  # Removed .winfo_exists()
             self.status_var.set("Topic details loaded")
     
     def clear_topic_details(self):
@@ -458,16 +458,17 @@ class TopicsView(ttk.Frame):
         """Start auto-refresh job"""
         if not self.is_refreshing:
             self.is_refreshing = True
-            self.auto_refresh_job = threading.Timer(1.0, self.load_topics)
-            self.auto_refresh_job.start()
-    
+            self._schedule_auto_refresh()
+
+    def _schedule_auto_refresh(self):
+        """Schedule the next auto-refresh"""
+        if self.is_refreshing and self.winfo_exists():
+            self.after(1000, self.load_topics)  # Schedule load_topics to run every 1 second
+
     def stop_auto_refresh(self):
         """Stop auto-refresh job"""
         self.is_refreshing = False
-        if self.auto_refresh_job:
-            self.auto_refresh_job.cancel()
-            self.auto_refresh_job = None
     
     def on_destroy(self):
         """Called when the view is being destroyed"""
-        self.stop_auto_refresh() 
+        self.stop_auto_refresh()
