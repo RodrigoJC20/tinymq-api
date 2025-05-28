@@ -17,6 +17,7 @@ router = APIRouter(
 class TopicBase(BaseModel):
     name: str
     owner_client_id: str
+    publish: bool = False
 
 class TopicCreate(TopicBase):
     pass

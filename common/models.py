@@ -18,6 +18,7 @@ class Topic:
     name: str
     owner_client_id: str
     created_at: Optional[datetime] = None
+    publish: bool = False
 
 @dataclass
 class Subscription:
@@ -47,6 +48,30 @@ class ConnectionEvent:
     ip_address: Optional[str] = None
     port: Optional[int] = None
     timestamp: Optional[datetime] = None
+
+@dataclass
+class AdminRequest:
+    id: int
+    topic_id: Optional[int] = None
+    requester_client_id: Optional[str] = None
+    status: Optional[str] = None  # 'pending', 'approved', 'rejected', 'revoked'
+    request_timestamp: Optional[datetime] = None
+    response_timestamp: Optional[datetime] = None
+
+@dataclass
+class AdminSensorConfig:
+    topic_id: int
+    sensor_name: str
+    active: bool = True
+    set_by: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    activable: bool = False
+
+@dataclass
+class TopicAdmin:
+    topic_id: int
+    admin_client_id: str
+    granted_at: Optional[datetime] = None
 
 @dataclass
 class ApiConfig:

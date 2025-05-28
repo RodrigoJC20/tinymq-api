@@ -41,6 +41,9 @@ class Client(Base):
     subscriptions = relationship("Subscription", back_populates="client", cascade="all, delete-orphan")
     messages = relationship("MessageLog", back_populates="publisher", cascade="all, delete-orphan")
     connection_events = relationship("ConnectionEvent", back_populates="client", cascade="all, delete-orphan")
+    admin_requests = relationship("AdminRequest", back_populates="requester", cascade="all, delete-orphan")
+    sensor_configs = relationship("AdminSensorConfig", back_populates="set_by_client", cascade="all, delete-orphan")
+    topic_admins = relationship("TopicAdmin", back_populates="admin_client", cascade="all, delete-orphan")
 
 class Topic(Base):
     __tablename__ = "topics"
@@ -49,11 +52,15 @@ class Topic(Base):
     name = Column(String, unique=True, index=True)
     owner_client_id = Column(String, ForeignKey("clients.client_id"))
     created_at = Column(DateTime)
+    publish = Column(Boolean, default=False)
     
     # Relationships
     owner = relationship("Client", back_populates="topics")
     subscriptions = relationship("Subscription", back_populates="topic")
     messages = relationship("MessageLog", back_populates="topic")
+    admin_requests = relationship("AdminRequest", back_populates="topic", cascade="all, delete-orphan")
+    sensor_configs = relationship("AdminSensorConfig", back_populates="topic", cascade="all, delete-orphan")
+    topic_admins = relationship("TopicAdmin", back_populates="topic", cascade="all, delete-orphan")
 
 class Subscription(Base):
     __tablename__ = "subscriptions"
@@ -95,6 +102,45 @@ class ConnectionEvent(Base):
     
     # Relationships
     client = relationship("Client", back_populates="connection_events")
+
+class AdminRequest(Base):
+    __tablename__ = "admin_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    topic_id = Column(Integer, ForeignKey("topics.id"))
+    requester_client_id = Column(String, ForeignKey("clients.client_id"))
+    status = Column(String)  # 'pending', 'approved', 'rejected', 'revoked'
+    request_timestamp = Column(DateTime, default=datetime.datetime.now)
+    response_timestamp = Column(DateTime)
+    
+    # Relationships
+    topic = relationship("Topic", back_populates="admin_requests")
+    requester = relationship("Client", back_populates="admin_requests")
+
+class AdminSensorConfig(Base):
+    __tablename__ = "admin_sensor_config"
+
+    topic_id = Column(Integer, ForeignKey("topics.id"), primary_key=True)
+    sensor_name = Column(String, primary_key=True)
+    active = Column(Boolean, default=True)
+    set_by = Column(String, ForeignKey("clients.client_id"))
+    updated_at = Column(DateTime, default=datetime.datetime.now)
+    activable = Column(Boolean, default=False)
+    
+    # Relationships
+    topic = relationship("Topic", back_populates="sensor_configs")
+    set_by_client = relationship("Client", back_populates="sensor_configs")
+
+class TopicAdmin(Base):
+    __tablename__ = "topic_admins"
+
+    topic_id = Column(Integer, ForeignKey("topics.id"), primary_key=True)
+    admin_client_id = Column(String, ForeignKey("clients.client_id"), primary_key=True)
+    granted_at = Column(DateTime, default=datetime.datetime.now)
+    
+    # Relationships
+    topic = relationship("Topic", back_populates="topic_admins")
+    admin_client = relationship("Client", back_populates="topic_admins")
 
 # Function to get a database session
 def get_db():
